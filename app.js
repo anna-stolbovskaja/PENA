@@ -9,6 +9,64 @@ import { parseReceipt, queryLedger, initOCR, categorizeExpense } from './lib/qva
 import { icon, icons } from './lib/icons.js';
 import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText } from './lib/ui.js';
 
+
+// ═══════════════════════════════════════════════════════════════
+// I18N
+// ═══════════════════════════════════════════════════════════════
+
+const LANG = {
+  en: {
+    balance: 'Balance', members: 'Members', contribute: 'Contribute', proposal: 'Proposal',
+    audit: 'Audit Feed', proposals: 'Proposals', pending: 'Pending', executed: 'Executed',
+    approve: 'Approve', execute: 'Execute', approved: 'Approved', settings: 'Settings',
+    income: 'Income', expenses: 'Expenses', notes: 'Notes', addNote: 'Add',
+    query: 'Query', queryPlaceholder: 'e.g. how much on buses?', search: 'Search',
+    payee: 'Payee', amount: 'Amount', purpose: 'Purpose', create: 'Create', cancel: 'Cancel',
+    demo: 'Demo', live: 'Live', help: 'Help', reports: 'Reports', matches: 'Matches',
+    exportReport: 'Export', copyReport: 'Copy', download: 'Download', budgetTracker: 'Budget Tracker',
+    onboarding_welcome: 'Welcome to PEÑA!', onboarding_step1: 'Your self-custody wallet has been generated.',
+    onboarding_step2: 'Start by exploring Demo mode, or switch to Live to create your real treasury.',
+    onboarding_step3: 'Invite members via P2P tab — share QR code or peer ID.',
+    noActivity: 'No activity yet', gasless: 'gasless', onChain: 'on-chain',
+    disputeTitle: 'Flag Transaction', disputeReason: 'Reason for dispute',
+    disputeSubmit: 'Submit Dispute', disputeList: 'Disputed Items',
+    recurringTitle: 'Recurring Contribution', recurringInterval: 'Interval',
+    recurringWeekly: 'Weekly', recurringMonthly: 'Monthly',
+    transparencyTitle: 'Public Transparency', transparencyDesc: 'Shareable read-only treasury summary',
+    insufficientBalance: 'Insufficient treasury balance', invalidAmount: 'Invalid amount (1–1,000,000)',
+    sigVerified: 'Signature verified', sigInvalid: 'Signature unverified',
+    roleFounder: 'Founder', roleApprover: 'Approver', roleMember: 'Member', roleViewer: 'Viewer',
+    budgetLimitExceeded: 'Budget limit exceeded for this role',
+  },
+  es: {
+    balance: 'Saldo', members: 'Miembros', contribute: 'Contribuir', proposal: 'Propuesta',
+    audit: 'Registro de auditoría', proposals: 'Propuestas', pending: 'Pendiente', executed: 'Ejecutado',
+    approve: 'Aprobar', execute: 'Ejecutar', approved: 'Aprobado', settings: 'Ajustes',
+    income: 'Ingresos', expenses: 'Gastos', notes: 'Notas', addNote: 'Agregar',
+    query: 'Consulta', queryPlaceholder: 'ej. cuánto en buses?', search: 'Buscar',
+    payee: 'Beneficiario', amount: 'Monto', purpose: 'Propósito', create: 'Crear', cancel: 'Cancelar',
+    demo: 'Demo', live: 'Real', help: 'Ayuda', reports: 'Informes', matches: 'Partidos',
+    exportReport: 'Exportar', copyReport: 'Copiar', download: 'Descargar', budgetTracker: 'Presupuesto',
+    onboarding_welcome: '¡Bienvenido a PEÑA!', onboarding_step1: 'Tu billetera de autocustodia fue generada.',
+    onboarding_step2: 'Explora el modo Demo o cambia a Real para crear tu tesorería.',
+    onboarding_step3: 'Invita miembros desde P2P — comparte código QR o peer ID.',
+    noActivity: 'Sin actividad', gasless: 'sin gas', onChain: 'on-chain',
+    disputeTitle: 'Disputar Transacción', disputeReason: 'Razón de la disputa',
+    disputeSubmit: 'Enviar Disputa', disputeList: 'Elementos Disputados',
+    recurringTitle: 'Contribución Recurrente', recurringInterval: 'Intervalo',
+    recurringWeekly: 'Semanal', recurringMonthly: 'Mensual',
+    transparencyTitle: 'Transparencia Pública', transparencyDesc: 'Resumen de tesorería compartible',
+    insufficientBalance: 'Saldo insuficiente en la tesorería', invalidAmount: 'Monto inválido (1–1.000.000)',
+    sigVerified: 'Firma verificada', sigInvalid: 'Firma no verificada',
+    roleFounder: 'Fundador', roleApprover: 'Aprobador', roleMember: 'Miembro', roleViewer: 'Observador',
+    budgetLimitExceeded: 'Límite de presupuesto excedido para este rol',
+  },
+};
+
+function t(key) {
+  return (LANG[state.lang] || LANG.en)[key] || (LANG.en)[key] || key;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
@@ -48,6 +106,16 @@ const state = {
   calcSplitMode: 'equal',
   // Tifo budget tracker
   tifoBudgets: [],
+  // i18n
+  lang: 'en',
+  // Onboarding
+  onboardingDone: false,
+  // Disputes
+  disputes: [],
+  // Recurring contributions
+  recurring: [],
+  // Role budget limits (per-role max proposal amount)
+  roleLimits: { founder: Infinity, approver: 5000, member: 500, viewer: 0 },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -68,6 +136,22 @@ function init() {
   try {
     state.tifoBudgets = JSON.parse(localStorage.getItem('pena_tifo_budgets') || '[]');
   } catch { state.tifoBudgets = []; }
+
+  // Load language
+  state.lang = localStorage.getItem('pena_lang') || (navigator.language?.startsWith('es') ? 'es' : 'en');
+
+  // Load onboarding flag
+  state.onboardingDone = localStorage.getItem('pena_onboarding') === 'done';
+
+  // Load disputes
+  try {
+    state.disputes = JSON.parse(localStorage.getItem('pena_disputes') || '[]');
+  } catch { state.disputes = []; }
+
+  // Load recurring contributions
+  try {
+    state.recurring = JSON.parse(localStorage.getItem('pena_recurring') || '[]');
+  } catch { state.recurring = []; }
 
   // Load wallet
   const savedWallet = localStorage.getItem('pena_wallet');
@@ -97,6 +181,7 @@ function init() {
         persistEvents();
         render();
         showToast('Synced via P2P', 'p2p');
+        sendLocalNotification('PEÑA', 'New activity synced via P2P');
       } else if (msg.type === 'state:sync') {
         if (state.members.length === 0 && msg.state) {
           Object.assign(state, msg.state);
@@ -129,6 +214,37 @@ function init() {
   const app = document.getElementById('app');
   if (skeleton) skeleton.style.display = 'none';
   if (app) app.style.display = 'block';
+
+  // Onboarding
+  if (!state.onboardingDone && state.mode !== 'demo') {
+    setTimeout(() => {
+      showModal(t('onboarding_welcome'), `
+        <div class="space-y-4">
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30">
+            <span class="text-green-600">${icon('wallet', 'md')}</span>
+            <p class="text-sm">${t('onboarding_step1')}</p>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+            <span class="text-blue-600">${icon('proposals', 'md')}</span>
+            <p class="text-sm">${t('onboarding_step2')}</p>
+          </div>
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30">
+            <span class="text-purple-600">${icon('p2p', 'md')}</span>
+            <p class="text-sm">${t('onboarding_step3')}</p>
+          </div>
+          <button id="onboarding-done" class="w-full py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm">Got it!</button>
+        </div>
+      `);
+      setTimeout(() => {
+        const btn = document.getElementById('onboarding-done');
+        if (btn) btn.addEventListener('click', () => {
+          state.onboardingDone = true;
+          localStorage.setItem('pena_onboarding', 'done');
+          closeModal();
+        });
+      }, 100);
+    }, 500);
+  }
 
   // Tour
   if (shouldShowTour()) setTimeout(startTour, 1000);
@@ -233,6 +349,11 @@ async function doCreateProposal(payee, amount, purpose, category) {
   const amt = sanitizeAmount(amount);
   if (!payee || !payee.trim() || !amt || amt <= 0 || amt > 1000000 || !purpose || !purpose.trim()) { showToast('Fill all fields with valid data', 'error'); return; }
   amount = amt;
+  // Role-based budget limit
+  const currentMember = state.members.find(m => m.id === state.currentUser);
+  const roleLimit = state.roleLimits[currentMember?.role] ?? Infinity;
+  if (amount > roleLimit) { showToast(t('budgetLimitExceeded') + ` (max ${roleLimit} USDt)`, 'error'); return; }
+
   const id = 'p' + Date.now();
   const cats = state.proposalCategories.length > 0 ? state.proposalCategories : [category || 'Other'];
   const catStr = cats.join(', ');
@@ -275,6 +396,104 @@ async function doParseReceipt(file) {
     else showToast(`Receipt: ${result.payee} - ${result.amount} USDt - ${result.category}`, 'success');
     render();
   } catch (err) { state.ocrLoading = false; showToast('OCR error: ' + err.message, 'error'); render(); }
+}
+
+// Signature verification cache
+const sigCache = new Map();
+function verifySigCached(approvalData, proposal, member) {
+  if (!approvalData.sig || !member.walletAddr || !proposal) return null;
+  const key = approvalData.sig + ':' + member.walletAddr;
+  if (sigCache.has(key)) return sigCache.get(key);
+  try {
+    const msg = `approve:${approvalData.proposalId}:${approvalData.memberId}`;
+    const result = verifySignature(msg, approvalData.sig, member.walletAddr);
+    sigCache.set(key, result);
+    return result;
+  } catch { sigCache.set(key, null); return null; }
+}
+
+// ── Dispute Resolution ─────────────────────────────────────────
+function flagDispute(proposalId, reason) {
+  if (!proposalId || !reason?.trim()) { showToast('Provide a reason', 'error'); return; }
+  const dispute = {
+    id: 'd' + Date.now(),
+    proposalId,
+    reason: reason.trim().substring(0, 300),
+    filedBy: state.currentUser,
+    ts: Date.now(),
+    status: 'open',
+  };
+  state.disputes.push(dispute);
+  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
+  showToast(t('disputeSubmit') + ' ✓', 'success');
+  render();
+}
+
+function resolveDispute(disputeId) {
+  const d = state.disputes.find(d => d.id === disputeId);
+  if (d) { d.status = 'resolved'; d.resolvedAt = Date.now(); }
+  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
+  render();
+}
+
+// ── Recurring Contributions ────────────────────────────────────
+function addRecurring(amount, interval) {
+  if (!amount || amount <= 0) { showToast(t('invalidAmount'), 'error'); return; }
+  const r = {
+    id: 'r' + Date.now(),
+    amount: sanitizeAmount(amount),
+    interval, // 'weekly' or 'monthly'
+    nextDue: Date.now() + (interval === 'weekly' ? 7 * 86400000 : 30 * 86400000),
+    active: true,
+  };
+  state.recurring.push(r);
+  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
+  showToast(t('recurringTitle') + ': ' + r.amount + ' USDt ' + interval, 'success');
+  render();
+}
+
+function cancelRecurring(id) {
+  state.recurring = state.recurring.filter(r => r.id !== id);
+  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
+  render();
+}
+
+// ── Public Transparency Page ───────────────────────────────────
+function generateTransparencyHTML() {
+  const totalIn = state.contributions.reduce((s, c) => s + (Number(c.amount) || 0), 0);
+  const totalOut = state.proposals.filter(p => p.status === 'executed').reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const cats = getCategorySummary(state);
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PEÑA — ${escapeHtml(state.groupName)} Treasury</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f8fafc;color:#1e293b;padding:2rem;max-width:800px;margin:0 auto}.card{background:white;border-radius:1rem;padding:1.5rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}.stat{display:inline-block;margin-right:2rem;margin-bottom:1rem}.stat-label{font-size:.75rem;color:#64748b}.stat-value{font-size:1.5rem;font-weight:700}.green{color:#16a34a}.blue{color:#2563eb}.orange{color:#ea580c}table{width:100%;border-collapse:collapse;font-size:.875rem}th,td{text-align:left;padding:.5rem;border-bottom:1px solid #e2e8f0}th{color:#64748b;font-weight:600}h1{font-size:1.5rem;margin-bottom:.5rem}h2{font-size:1rem;margin-bottom:.75rem;color:#475569}.footer{text-align:center;margin-top:2rem;font-size:.75rem;color:#94a3b8}</style></head><body><h1>PEÑA — ${escapeHtml(state.groupName)}</h1><p style="color:#64748b;margin-bottom:1.5rem">Public Treasury Report · Generated ${new Date().toLocaleDateString()}</p><div class="card"><div class="stat"><p class="stat-label">${t('balance')}</p><p class="stat-value green">${state.balance} USDt</p></div><div class="stat"><p class="stat-label">${t('income')}</p><p class="stat-value blue">${totalIn} USDt</p></div><div class="stat"><p class="stat-label">${t('expenses')}</p><p class="stat-value orange">${totalOut} USDt</p></div><div class="stat"><p class="stat-label">${t('members')}</p><p class="stat-value">${state.members.length}</p></div></div><div class="card"><h2>Expenses by Category</h2><table><tr><th>Category</th><th>Amount</th></tr>${Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,a])=>`<tr><td>${escapeHtml(c)}</td><td>${a} USDt</td></tr>`).join('')}</table></div><div class="card"><h2>Contributions</h2><table><tr><th>Member</th><th>Amount</th></tr>${state.contributions.map(c=>{const m=state.members.find(m=>m.id===c.memberId);return `<tr><td>${escapeHtml(m?m.name:'?')}</td><td>${c.amount} USDt</td></tr>`;}).join('')}</table></div><div class="card"><h2>Proposals</h2><table><tr><th>Payee</th><th>Amount</th><th>Status</th><th>Approvals</th></tr>${state.proposals.map(p=>`<tr><td>${escapeHtml(p.payee)}</td><td>${p.amount} USDt</td><td>${p.status}</td><td>${p.approvals.length}/${state.threshold}</td></tr>`).join('')}</table></div><p class="footer">PEÑA — Transparent Self-Custody Treasury · pena-repo.vercel.app</p></body></html>`;
+}
+
+function downloadTransparency() {
+  const html = generateTransparencyHTML();
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `pena-transparency-${Date.now()}.html`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(t('transparencyTitle') + ' downloaded', 'success');
+}
+
+// ── Push Notifications ─────────────────────────────────────────
+async function requestNotifications() {
+  if (!('Notification' in window)) { showToast('Notifications not supported', 'error'); return false; }
+  if (Notification.permission === 'granted') return true;
+  const result = await Notification.requestPermission();
+  if (result === 'granted') { showToast('Notifications enabled', 'success'); return true; }
+  showToast('Notifications denied', 'error');
+  return false;
+}
+
+function sendLocalNotification(title, body) {
+  if (Notification.permission !== 'granted') return;
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body, tag: 'pena-' + Date.now() });
+  } else {
+    new Notification(title, { body, icon: '/icon.svg' });
+  }
 }
 
 function doNLQuery(query) {
@@ -437,7 +656,8 @@ function renderHeader() {
         <span class="flex items-center gap-1">${icon('arrowDown', 'sm')} ${totalOut}</span>
         <span>M-of-N: ${state.threshold}/${state.members.filter(m => m.role !== 'member').length}</span>
         <span class="font-mono hidden sm:inline">${shortenHash(state.wallet?.address || '', 8, 6)}</span>
-        <button data-mode-toggle class="ml-auto px-2 py-0.5 rounded-full text-xs ${state.mode === 'demo' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'}">${state.mode === 'demo' ? 'Demo' : 'Live'}</button>
+        <button data-lang-toggle class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">${state.lang === 'es' ? 'EN' : 'ES'}</button>
+        <button data-mode-toggle class="ml-auto px-2 py-0.5 rounded-full text-xs ${state.mode === 'demo' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'}">${state.mode === 'demo' ? t('demo') : t('live')}</button>
       </div>
     </div>
   `;
@@ -549,7 +769,7 @@ function feedItem(e) {
   if (e.type === 'member') return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-green-600 dark:text-green-400 flex-shrink-0">${icon('user', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(e.data.name)} joined</p><p class="text-xs text-gray-400">${escapeHtml(e.data.role)} - ${time}</p></div></div>`;
   if (e.type === 'contribution') { const m = member(e.data.memberId); return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900"><div class="w-8 h-8 rounded-full bg-green-200 dark:bg-green-800 flex items-center justify-center text-green-700 dark:text-green-300 flex-shrink-0">${icon('arrowUp', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} contributed <span class="text-green-600 dark:text-green-400 font-bold">${e.data.amount} USDt</span></p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0">on-chain</span></div>`; }
   if (e.type === 'proposal') { const m = member(e.data.createdBy); return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-100 dark:border-yellow-900"><div class="w-8 h-8 rounded-full bg-yellow-200 dark:bg-yellow-800 flex items-center justify-center text-yellow-700 dark:text-yellow-300 flex-shrink-0">${icon('proposals', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} proposed <span class="font-bold">${e.data.amount} USDt</span> to ${escapeHtml(e.data.payee)}</p><p class="text-xs text-gray-400 truncate">${escapeHtml(e.data.purpose)} - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full ${e.data.status === 'executed' ? 'badge-executed' : 'badge-pending'} flex-shrink-0">${e.data.status === 'executed' ? 'executed' : 'pending'}</span></div>`; }
-  if (e.type === 'approval') { const m = member(e.data.memberId); return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 flex-shrink-0">${icon('check', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm truncate">${escapeHtml(m ? m.name : '?')} approved: ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.sig || '', 8, 6)} - ${time}</p></div></div>`; }
+  if (e.type === 'approval') { const m = member(e.data.memberId); const sigValid = e.data.sig && m && m.walletAddr ? verifySigCached(e.data, e.proposal, m) : null; return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 flex-shrink-0">${icon('check', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm truncate">${escapeHtml(m ? m.name : '?')} approved: ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.sig || '', 8, 6)} - ${time}</p></div>${sigValid === true ? `<span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0 flex items-center gap-1">${icon('shield', 'sm')} ${t('sigVerified')}</span>` : sigValid === false ? `<span class="text-xs px-2 py-1 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 flex-shrink-0">${t('sigInvalid')}</span>` : ''}</div>`; }
   if (e.type === 'execution') { return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900"><div class="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-300 flex-shrink-0">${icon('arrowDown', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">Executed: <span class="font-bold">${e.proposal ? e.proposal.amount : 0} USDt</span> to ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} - gasless - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full badge-executed flex-shrink-0">on-chain</span></div>`; }
   return '';
 }
@@ -559,7 +779,8 @@ function feedItem(e) {
 function renderProposals() {
   const pending = state.proposals.filter(p => p.status === 'pending');
   const executed = state.proposals.filter(p => p.status === 'executed');
-  return `<div class="space-y-4"><div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">PENDING - REQUIRES ${state.threshold} APPROVALS</h3><div class="space-y-3">${pending.length === 0 ? '<p class="text-center text-gray-400 py-8">No pending proposals</p>' : pending.map(proposalCard).join('')}</div></div>${executed.length > 0 ? `<div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 mt-6">EXECUTED</h3><div class="space-y-3">${executed.map(proposalCard).join('')}</div></div>` : ''}</div>`;
+  const openDisputes = state.disputes.filter(d => d.status === 'open');
+  return `<div class="space-y-4"><div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3">${t('pending').toUpperCase()} - REQUIRES ${state.threshold} APPROVALS</h3><div class="space-y-3">${pending.length === 0 ? '<p class="text-center text-gray-400 py-8">No pending proposals</p>' : pending.map(proposalCard).join('')}</div></div>${executed.length > 0 ? `<div><h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 mt-6">${t('executed').toUpperCase()}</h3><div class="space-y-3">${executed.map(proposalCard).join('')}</div></div>` : ''}${openDisputes.length > 0 ? `<div class="mt-6"><h3 class="text-sm font-semibold text-red-500 mb-3 flex items-center gap-2">${icon('alert', 'sm')} ${t('disputeList')} (${openDisputes.length})</h3><div class="space-y-2">${openDisputes.map(d => { const p = state.proposals.find(p => p.id === d.proposalId); const m = state.members.find(m => m.id === d.filedBy); return `<div class="p-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900"><div class="flex items-center justify-between"><div><p class="text-sm font-medium">${escapeHtml(p ? p.payee : '?')} — ${p ? p.amount : 0} USDt</p><p class="text-xs text-red-600 dark:text-red-400 mt-1">${escapeHtml(d.reason)}</p><p class="text-xs text-gray-400 mt-1">Filed by ${escapeHtml(m ? m.name : '?')} · ${new Date(d.ts).toLocaleDateString()}</p></div><button data-resolve-dispute="${d.id}" class="px-3 py-1 rounded-lg bg-green-600 text-white text-xs">Resolve</button></div></div>`; }).join('')}</div></div>` : ''}${state.recurring.length > 0 ? `<div class="mt-6"><h3 class="text-sm font-semibold text-blue-500 dark:text-blue-400 mb-3 flex items-center gap-2">${icon('clock', 'sm')} ${t('recurringTitle')}</h3><div class="space-y-2">${state.recurring.map(r => `<div class="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900"><div><p class="text-sm font-medium">${r.amount} USDt — ${r.interval === 'weekly' ? t('recurringWeekly') : t('recurringMonthly')}</p><p class="text-xs text-gray-400">Next: ${new Date(r.nextDue).toLocaleDateString()}</p></div><button data-cancel-recurring="${r.id}" class="text-red-400 hover:text-red-600 text-xs">${t('cancel')}</button></div>`).join('')}</div></div>` : ''}<div class="mt-6 flex gap-2"><button id="btn-add-recurring" class="flex-1 py-2 rounded-xl border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-500 text-sm hover:border-blue-500 transition-smooth flex items-center justify-center gap-1">${icon('clock', 'sm')} ${t('recurringTitle')}</button><button id="btn-transparency" class="flex-1 py-2 rounded-xl border-2 border-dashed border-green-300 dark:border-green-700 text-green-500 text-sm hover:border-green-500 transition-smooth flex items-center justify-center gap-1">${icon('globe', 'sm')} ${t('transparencyTitle')}</button></div></div>`;
 }
 
 function proposalCard(p) {
@@ -568,7 +789,7 @@ function proposalCard(p) {
   const canExecute = p.status === 'pending' && checkThreshold(p, state.threshold);
   const progress = Math.min(100, (p.approvals.length / state.threshold) * 100);
   const receipt = state.receipts.find(r => r.proposalId === p.id);
-  return `<div class="slide-in bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 card-hover transition-smooth"><div class="flex items-start justify-between gap-3"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1 flex-wrap"><span class="text-xs px-2 py-0.5 rounded-full ${p.status === 'executed' ? 'badge-executed' : 'badge-pending'}">${p.status === 'executed' ? 'executed' : 'pending'}</span>${p.category ? `<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">${escapeHtml(p.category)}</span>` : ''}</div><p class="font-semibold text-base truncate">${escapeHtml(p.payee)}</p><p class="text-sm text-gray-500 dark:text-gray-400 truncate">${escapeHtml(p.purpose)}</p><p class="text-2xl font-bold mt-2">${p.amount} <span class="text-sm font-normal text-gray-400">USDt</span></p>${receipt ? `<div class="mt-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-xs flex items-center gap-1"><span class="text-green-600 dark:text-green-400">${icon('camera', 'sm')}</span> OCR: ${escapeHtml(receipt.parsed.payee)} - ${escapeHtml(receipt.parsed.category)}</div>` : ''}</div><div class="text-right flex-shrink-0">${p.status === 'pending' ? `<p class="text-xs text-gray-400 mb-2">Approvals</p><p class="text-lg font-bold">${p.approvals.length}/${state.threshold}</p><div class="progress-bar mt-2 w-20 sm:w-24"><div class="progress-bar-fill" style="width:${progress}%"></div></div>${canApprove ? `<button data-approve="${p.id}" class="mt-3 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-smooth">Approve</button>` : ''}${hasApproved ? '<p class="text-xs text-green-600 dark:text-green-400 mt-2">Approved</p>' : ''}${canExecute ? `<button data-execute="${p.id}" class="mt-3 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium block w-full">Execute</button>` : ''}` : `<p class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">${icon('check', 'sm')} Done</p>${state.executions.find(e => e.proposalId === p.id) ? `<p class="text-xs font-mono text-gray-400 mt-1">${shortenHash(state.executions.find(e => e.proposalId === p.id).txHash)}</p>` : ''}`}</div></div>${p.approvals.length > 0 ? `<div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex gap-2 flex-wrap">${p.approvals.map(a => { const m = state.members.find(m => m.id === a.memberId); return `<span class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center gap-1">${icon('check', 'sm')} ${escapeHtml(m ? m.name : '?')}</span>`; }).join('')}</div>` : ''}</div>`;
+  return `<div class="slide-in bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 card-hover transition-smooth"><div class="flex items-start justify-between gap-3"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1 flex-wrap"><span class="text-xs px-2 py-0.5 rounded-full ${p.status === 'executed' ? 'badge-executed' : 'badge-pending'}">${p.status === 'executed' ? 'executed' : 'pending'}</span>${p.category ? `<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">${escapeHtml(p.category)}</span>` : ''}</div><p class="font-semibold text-base truncate">${escapeHtml(p.payee)}</p><p class="text-sm text-gray-500 dark:text-gray-400 truncate">${escapeHtml(p.purpose)}</p><p class="text-2xl font-bold mt-2">${p.amount} <span class="text-sm font-normal text-gray-400">USDt</span></p>${receipt ? `<div class="mt-2 p-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-xs flex items-center gap-1"><span class="text-green-600 dark:text-green-400">${icon('camera', 'sm')}</span> OCR: ${escapeHtml(receipt.parsed.payee)} - ${escapeHtml(receipt.parsed.category)}</div>` : ''}</div><div class="text-right flex-shrink-0">${p.status === 'pending' ? `<p class="text-xs text-gray-400 mb-2">Approvals</p><p class="text-lg font-bold">${p.approvals.length}/${state.threshold}</p><div class="progress-bar mt-2 w-20 sm:w-24"><div class="progress-bar-fill" style="width:${progress}%"></div></div>${canApprove ? `<button data-approve="${p.id}" class="mt-3 px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-smooth">Approve</button>` : ''}${hasApproved ? '<p class="text-xs text-green-600 dark:text-green-400 mt-2">Approved</p>' : ''}${canExecute ? `<button data-execute="${p.id}" class="mt-3 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium block w-full">${t('execute')}</button>` : ''}${p.status === 'executed' && !state.disputes.find(d => d.proposalId === p.id) ? `<button data-flag-dispute="${p.id}" class="mt-2 px-3 py-1 rounded-lg text-red-400 hover:text-red-600 text-xs flex items-center gap-1">${icon('alert', 'sm')} Flag</button>` : ''}` : `<p class="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">${icon('check', 'sm')} Done</p>${state.executions.find(e => e.proposalId === p.id) ? `<p class="text-xs font-mono text-gray-400 mt-1">${shortenHash(state.executions.find(e => e.proposalId === p.id).txHash)}</p>` : ''}`}</div></div>${p.approvals.length > 0 ? `<div class="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex gap-2 flex-wrap">${p.approvals.map(a => { const m = state.members.find(m => m.id === a.memberId); return `<span class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center gap-1">${icon('check', 'sm')} ${escapeHtml(m ? m.name : '?')}</span>`; }).join('')}</div>` : ''}</div>`;
 }
 
 // ─── BALANCE ───────────────────────────────────────────────────
@@ -931,16 +1152,41 @@ function renderCalc() {
             </div>
           </div>
           ${(() => {
-            const ratio = balance + totalExpenses > 0 ? balance / (balance + totalExpenses) : 1;
-            const health = ratio > 0.5 ? { label: 'Healthy', color: 'text-green-600', bar: 'bg-green-500' } :
-                          ratio > 0.2 ? { label: 'Moderate', color: 'text-yellow-600', bar: 'bg-yellow-500' } :
-                          { label: 'Low funds', color: 'text-red-500', bar: 'bg-red-500' };
-            return `<div class="mt-3">
-              <div class="flex justify-between text-sm mb-1">
-                <span class="${health.color} font-medium">${health.label}</span>
-                <span>${balance} / ${balance + totalExpenses} USDt</span>
+            // Treasury Health Score Algorithm
+            // Factors: reserve ratio (40%), contributor diversity (20%), approval rate (20%), dispute rate (10%), budget adherence (10%)
+            const total = balance + totalExpenses;
+            const reserveRatio = total > 0 ? balance / total : 1;
+            const reserveScore = Math.min(100, reserveRatio * 200); // 50%+ reserve = 100
+
+            const uniqueContributors = new Set(state.contributions.map(c => c.memberId)).size;
+            const diversityScore = members > 0 ? Math.min(100, (uniqueContributors / members) * 100) : 0;
+
+            const approvedCount = state.proposals.filter(p => p.approvals && p.approvals.length >= state.threshold).length;
+            const approvalScore = state.proposals.length > 0 ? (approvedCount / state.proposals.length) * 100 : 100;
+
+            const openDisputes = state.disputes.filter(d => d.status === 'open').length;
+            const disputeScore = state.proposals.length > 0 ? Math.max(0, 100 - (openDisputes / state.proposals.length) * 200) : 100;
+
+            const overBudget = state.tifoBudgets.filter(b => b.spent > b.goal).length;
+            const budgetScore = state.tifoBudgets.length > 0 ? Math.max(0, 100 - (overBudget / state.tifoBudgets.length) * 100) : 100;
+
+            const healthScore = Math.round(reserveScore * 0.4 + diversityScore * 0.2 + approvalScore * 0.2 + disputeScore * 0.1 + budgetScore * 0.1);
+            const health = healthScore >= 75 ? { label: 'Excellent', color: 'text-green-600', bg: '#00a86b' } :
+                          healthScore >= 50 ? { label: 'Good', color: 'text-blue-600', bg: '#2563eb' } :
+                          healthScore >= 30 ? { label: 'Moderate', color: 'text-yellow-600', bg: '#f59e0b' } :
+                          { label: 'At Risk', color: 'text-red-500', bg: '#ef4444' };
+            return `<div class="mt-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <div class="flex items-center justify-between mb-2">
+                <span class="${health.color} font-bold text-lg">${healthScore}/100</span>
+                <span class="${health.color} font-medium text-sm">${health.label}</span>
               </div>
-              <div class="progress-bar"><div class="progress-bar-fill ${health.bar}" style="width:${ratio * 100}%;background:${health.bar.includes('green') ? '#00a86b' : health.bar.includes('yellow') ? '#f59e0b' : '#ef4444'}"></div></div>
+              <div class="progress-bar mb-3"><div class="progress-bar-fill" style="width:${healthScore}%;background:${health.bg}"></div></div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="flex justify-between"><span class="text-gray-400">Reserve ratio</span><span>${Math.round(reserveScore)}%</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Contributor diversity</span><span>${Math.round(diversityScore)}%</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Approval rate</span><span>${Math.round(approvalScore)}%</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">Dispute rate</span><span>${Math.round(disputeScore)}%</span></div>
+              </div>
             </div>`;
           })()}
         </div>
@@ -995,8 +1241,16 @@ function renderQuery() {
 
 function renderP2P() {
   const inviteCode = state.p2p?.peerId || '';
+  const notifStatus = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
   return `
     <div class="space-y-4">
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-semibold flex items-center gap-2">${icon('bell', 'sm')} Notifications</h4>
+          <span class="text-xs px-2 py-1 rounded-full ${notifStatus === 'granted' ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}">${notifStatus === 'granted' ? 'Enabled' : notifStatus === 'denied' ? 'Blocked' : 'Off'}</span>
+        </div>
+        ${notifStatus !== 'granted' ? `<button id="btn-enable-notif" class="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">Enable Push Notifications</button>` : `<p class="text-xs text-gray-400">You'll be notified of new P2P activity, approvals, and disputes.</p>`}
+      </div>
       <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
         <div class="flex items-center gap-2 mb-3"><span class="text-green-600 dark:text-green-400">${icon('p2p', 'md')}</span><h4 class="font-semibold">P2P Synchronization</h4></div>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">PEÑA syncs the ledger across devices without a server. BroadcastChannel handles same-browser sync. WebRTC connects separate devices via manual signaling.</p>
@@ -1065,6 +1319,11 @@ function renderHelp() {
           <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('reports', 'sm')} Reports</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Detailed statistics, sortable tables, and exportable reports. Download as text file or copy to clipboard.</p></div>
           <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('query', 'sm')} NL Query</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ask questions in natural language: "how much on buses?", "who contributed most?", "what's the balance?" — answered locally from the ledger.</p></div>
           <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('p2p', 'sm')} P2P Sync</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Real-time sync between devices. Open in two tabs to test. Use WebRTC for cross-device connections. Share invite via QR code.</p></div>
+          <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('shield', 'sm')} Signature Verification</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Every approval signature is cryptographically verified against the member's wallet address using EIP-191.</p></div>
+          <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('alert', 'sm')} Dispute Resolution</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Flag executed proposals for review. Disputes are tracked with reason and status until resolved by the group.</p></div>
+          <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('clock', 'sm')} Recurring Contributions</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Set up weekly or monthly auto-contributions. Manage active schedules from the Proposals tab.</p></div>
+          <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('globe', 'sm')} Public Transparency</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Generate a shareable HTML page with treasury summary, categories, contributions, and proposals — perfect for sponsors.</p></div>
+          <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="font-medium text-sm flex items-center gap-2">${icon('users', 'sm')} Roles & Budget Limits</p><p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Members have roles (Founder, Approver, Member, Viewer) with per-role proposal limits. Founder: unlimited, Approver: 5000, Member: 500.</p></div>
         </div>
       </div>
 
@@ -1097,6 +1356,14 @@ function renderHelp() {
           <p>Every async operation has try/catch error handling. The app never crashes silently.</p>
           <p>Security headers: X-Content-Type-Options, X-Frame-Options, Referrer-Policy.</p>
           <p>No hardcoded secrets, API keys, or tokens in the codebase.</p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('globe', 'md')} Language / Idioma</h4>
+        <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <p>PEÑA supports <strong>English</strong> and <strong>Spanish</strong>. Toggle with the language button in the header bar.</p>
+          <p>PEÑA soporta <strong>Inglés</strong> y <strong>Español</strong>. Cambia el idioma con el botón en la barra superior.</p>
         </div>
       </div>
 
@@ -1199,6 +1466,70 @@ function bindEvents() {
       });
     }, 100);
   });
+
+  // Enable notifications
+  const notifBtn = document.getElementById('btn-enable-notif');
+  if (notifBtn) notifBtn.addEventListener('click', async () => { await requestNotifications(); render(); });
+
+  // Language toggle
+  document.querySelectorAll('[data-lang-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    state.lang = state.lang === 'en' ? 'es' : 'en';
+    localStorage.setItem('pena_lang', state.lang);
+    render();
+  }));
+
+  // Dispute flag
+  document.querySelectorAll('[data-flag-dispute]').forEach(btn => btn.addEventListener('click', () => {
+    const pid = btn.dataset.flagDispute;
+    showModal(t('disputeTitle'), `
+      <div class="space-y-3">
+        <textarea id="dispute-reason" placeholder="${t('disputeReason')}" maxlength="300" class="w-full h-24 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm"></textarea>
+        <button id="dispute-submit" class="w-full py-2 rounded-lg bg-red-600 text-white font-medium text-sm">${t('disputeSubmit')}</button>
+      </div>
+    `);
+    setTimeout(() => {
+      const sub = document.getElementById('dispute-submit');
+      if (sub) sub.addEventListener('click', () => {
+        const reason = document.getElementById('dispute-reason')?.value;
+        flagDispute(pid, reason);
+        closeModal();
+      });
+    }, 100);
+  }));
+
+  // Resolve dispute
+  document.querySelectorAll('[data-resolve-dispute]').forEach(btn => btn.addEventListener('click', () => resolveDispute(btn.dataset.resolveDispute)));
+
+  // Cancel recurring
+  document.querySelectorAll('[data-cancel-recurring]').forEach(btn => btn.addEventListener('click', () => cancelRecurring(btn.dataset.cancelRecurring)));
+
+  // Add recurring
+  const addRec = document.getElementById('btn-add-recurring');
+  if (addRec) addRec.addEventListener('click', () => {
+    showModal(t('recurringTitle'), `
+      <div class="space-y-3">
+        <input id="recurring-amount" type="number" placeholder="${t('amount')} (USDt)" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+        <select id="recurring-interval" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+          <option value="weekly">${t('recurringWeekly')}</option>
+          <option value="monthly">${t('recurringMonthly')}</option>
+        </select>
+        <button id="recurring-save" class="w-full py-2 rounded-lg bg-blue-600 text-white font-medium text-sm">${t('create')}</button>
+      </div>
+    `);
+    setTimeout(() => {
+      const save = document.getElementById('recurring-save');
+      if (save) save.addEventListener('click', () => {
+        const amt = parseFloat(document.getElementById('recurring-amount')?.value || '0');
+        const interval = document.getElementById('recurring-interval')?.value || 'monthly';
+        addRecurring(amt, interval);
+        closeModal();
+      });
+    }, 100);
+  });
+
+  // Transparency download
+  const transBtn = document.getElementById('btn-transparency');
+  if (transBtn) transBtn.addEventListener('click', downloadTransparency);
 
   // Sortable tables
   document.querySelectorAll('table[id^="sortable-table-"]').forEach(t => attachSortable(t.id));

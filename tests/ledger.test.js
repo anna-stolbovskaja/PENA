@@ -280,3 +280,69 @@ test('applyEvent rejects tampered events', () => {
   assert.equal(state.contributions.length, 0); // rejected
   assert.equal(state.balance, 0);
 });
+
+// ── Integration tests for new features ─────────────────────────
+
+test('eventHash differs for different events', () => {
+  const ev1 = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 });
+  const ev2 = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 200 });
+  assert.notEqual(ev1.hash, ev2.hash);
+});
+
+test('sanitizeAmount allows large values (UI caps separately)', () => {
+  assert.equal(sanitizeAmount(2000000), 2000000);
+});
+
+test('sanitizeText strips leading/trailing whitespace', () => {
+  assert.equal(sanitizeText('  hello  ', 100), 'hello');
+});
+
+test('rebuildState processes all event types', () => {
+  resetAppliedIds();
+  const events = [
+    createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm1', name: 'Alice', role: 'founder' }),
+    createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 1000 }),
+    createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id: 'p1', payee: 'X', amount: 500, purpose: 'test', category: 'Other' }),
+    createEvent(EVENT_TYPES.PROPOSAL_APPROVE, { proposalId: 'p1', memberId: 'm1', sig: '0x1' }),
+    createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId: 'p1', txHash: '0xabc' }),
+  ];
+  const state = rebuildState(events);
+  assert.equal(state.members.length, 1);
+  assert.equal(state.contributions.length, 1);
+  assert.equal(state.balance, 500);
+  assert.equal(state.proposals.length, 1);
+  assert.equal(state.proposals[0].status, 'executed');
+});
+
+test('getMemberContributions aggregates correctly', () => {
+  resetAppliedIds();
+  const events = [
+    createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm1', name: 'A' }),
+    createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm2', name: 'B' }),
+    createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 }),
+    createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 200 }),
+    createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm2', amount: 50 }),
+  ];
+  const state = rebuildState(events);
+  const byMember = getMemberContributions(state);
+  assert.equal(byMember['A'], 300);
+  assert.equal(byMember['B'], 50);
+});
+
+test('getCategorySummary groups executed proposals', () => {
+  resetAppliedIds();
+  const events = [
+    createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm1', name: 'A' }),
+    createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 5000 }),
+    createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id: 'p1', payee: 'X', amount: 100, purpose: 'x', category: 'Transport' }),
+    createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId: 'p1', txHash: '0x1' }),
+    createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id: 'p2', payee: 'Y', amount: 200, purpose: 'y', category: 'Transport' }),
+    createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId: 'p2', txHash: '0x2' }),
+    createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id: 'p3', payee: 'Z', amount: 50, purpose: 'z', category: 'Tifo' }),
+    createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId: 'p3', txHash: '0x3' }),
+  ];
+  const state = rebuildState(events);
+  const cats = getCategorySummary(state);
+  assert.equal(cats['Transport'], 300);
+  assert.equal(cats['Tifo'], 50);
+});

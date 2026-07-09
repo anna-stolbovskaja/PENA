@@ -49,6 +49,15 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 - Production target: `@qvac/sdk` for VLM-powered receipt parsing and LLM queries
 
 ### Additional Features
+- **Signature Verification** — EIP-191 signature verification on every approval in the audit feed
+- **Dispute Resolution** — flag executed proposals, track disputes with reasons, resolve collectively
+- **Recurring Contributions** — schedule weekly or monthly auto-contributions
+- **Public Transparency Page** — downloadable HTML report for sponsors and public accountability
+- **Roles & Budget Limits** — per-role proposal limits (Founder unlimited, Approver 5000, Member 500 USDt)
+- **i18n** — full English/Spanish localization, auto-detects browser language
+- **Onboarding Flow** — guided welcome modal for new users in Live mode
+- **Budget Tracker** — set spending goals with progress bars, deadlines, and urgency indicators
+- **Multi-Category Proposals** — tag proposals with multiple categories (Transport + Tickets + Food)
 - **Audit Feed** — transparent, immutable log of all treasury activity
 - **Proposals** — M-of-N spending approvals with receipt attachment
 - **Balance Dashboard** — visual charts: category breakdown, spending trends, member contributions
@@ -69,6 +78,7 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 | OCR | Tesseract.js 5.x | On-device receipt text extraction | Prototype — production: `@qvac/sdk` VLM |
 | NL Query | Local query engine | Natural language questions over ledger state | Prototype — production: `@qvac/sdk` LLM |
 | Frontend | Vanilla JS + Tailwind CSS | Zero build step, instant load | Production-ready |
+| i18n | Built-in EN/ES | Localized UI labels and messages | Production-ready |
 | Icons | Custom SVG library | No icon font dependencies | Production-ready |
 | Charts | Custom SVG charts | No chart library, animated visualizations | Production-ready |
 | PWA | manifest.json | Installable, offline-capable, app-like experience | Production-ready |

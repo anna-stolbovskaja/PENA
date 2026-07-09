@@ -1,4 +1,4 @@
-// Service Worker — PEÑA offline cache
+// Service Worker — PEÑA offline cache + push notifications
 // Caches app shell for offline use, network-first for CDN resources
 
 const CACHE_NAME = 'pena-v1';
@@ -72,5 +72,54 @@ self.addEventListener('fetch', (event) => {
           return cached || fetchPromise;
         })
     );
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════
+
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  const title = data.title || 'PEÑA';
+  const options = {
+    body: data.body || 'New treasury activity',
+    icon: '/icon.svg',
+    badge: '/icon.svg',
+    tag: data.tag || 'pena-notification',
+    data: { url: data.url || '/' },
+    actions: [
+      { action: 'open', title: 'View' },
+      { action: 'dismiss', title: 'Dismiss' },
+    ],
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  if (event.action === 'dismiss') return;
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(windowClients => {
+        for (const client of windowClients) {
+          if (client.url.includes(self.location.origin)) {
+            client.focus();
+            return;
+          }
+        }
+        return clients.openWindow(event.notification.data.url || '/');
+      })
+  );
+});
+
+// Listen for messages from main thread to trigger local notifications
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    self.registration.showNotification(event.data.title || 'PEÑA', {
+      body: event.data.body || '',
+      icon: '/icon.svg',
+      tag: event.data.tag || 'pena-local',
+    });
   }
 });
