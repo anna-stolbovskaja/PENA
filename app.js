@@ -2,7 +2,7 @@
 // Wires: ledger.js (state), p2p.js (sync), wdk.js (wallet), qvac.js (OCR + NL)
 // UI: icons.js, ui.js (modals, toasts, tour, charts, QR, sortable tables)
 
-import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, isApproved, getCategorySummary, getMemberContributions, escapeHtml } from './lib/ledger.js';
+import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, resetAppliedIds, isApproved, getCategorySummary, getMemberContributions, escapeHtml, sanitizeAmount } from './lib/ledger.js';
 import { P2PNode } from './lib/p2p.js';
 import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash, ethers } from './lib/wdk.js';
 import { parseReceipt, queryLedger, initOCR, categorizeExpense } from './lib/qvac.js';
@@ -83,6 +83,7 @@ function init() {
     });
     state.p2p.onEvent((msg) => {
       if (msg.type === 'event') {
+        if (msg.event && msg.event.id && state.events.some(e => e.id === msg.event.id)) break; // duplicate
         state.events.push(msg.event);
         applyEvent(state, msg.event);
         persistEvents();
@@ -185,12 +186,25 @@ function emitEvent(event) {
   render();
 }
 
+const MAX_PERSISTED_EVENTS = 5000;
 function persistEvents() {
-  try { localStorage.setItem('pena_events', JSON.stringify(state.events)); } catch { /* quota exceeded */ }
+  try {
+    const toStore = state.events.length > MAX_PERSISTED_EVENTS
+      ? state.events.slice(-MAX_PERSISTED_EVENTS)
+      : state.events;
+    localStorage.setItem('pena_events', JSON.stringify(toStore));
+  } catch {
+    // Quota exceeded — try with fewer events
+    try {
+      localStorage.setItem('pena_events', JSON.stringify(state.events.slice(-1000)));
+    } catch { /* give up silently */ }
+  }
 }
 
 async function doContribute(amount) {
-  if (!amount || amount <= 0) { showToast('Invalid amount', 'error'); return; }
+  const amt = sanitizeAmount(amount);
+  if (!amt || amt <= 0 || amt > 1000000) { showToast('Invalid amount (1–1,000,000)', 'error'); return; }
+  amount = amt;
   try {
     const auth = await signTransferAuthorization(state.wallet.privateKey, { to: state.smartAccount.address, amount });
     if (!auth) { showToast('Signing failed', 'error'); return; }
@@ -201,7 +215,9 @@ async function doContribute(amount) {
 }
 
 async function doCreateProposal(payee, amount, purpose, category) {
-  if (!payee || !amount || amount <= 0 || !purpose) { showToast('Fill all fields', 'error'); return; }
+  const amt = sanitizeAmount(amount);
+  if (!payee || !payee.trim() || !amt || amt <= 0 || amt > 1000000 || !purpose || !purpose.trim()) { showToast('Fill all fields with valid data', 'error'); return; }
+  amount = amt;
   const id = 'p' + Date.now();
   emitEvent(createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id, payee, amount: Number(amount), currency: 'USDt', purpose, category: category || 'Other', createdBy: state.currentUser, ts: Date.now() }, state.wallet));
   if (state.proposalReceipt) emitEvent(createEvent(EVENT_TYPES.RECEIPT_PARSE, { proposalId: id, parsed: state.proposalReceipt }, state.wallet));
@@ -223,6 +239,7 @@ async function doExecute(proposalId) {
   try {
     const proposal = state.proposals.find(p => p.id === proposalId);
     if (!proposal || !checkThreshold(proposal, state.threshold)) { showToast('Not enough approvals', 'error'); return; }
+    if (state.balance < proposal.amount) { showToast('Insufficient treasury balance', 'error'); return; }
     const auth = await signTransferAuthorization(state.wallet.privateKey, { to: proposal.payee, amount: proposal.amount });
     emitEvent(createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId, txHash: simulateTxHash(), authSignature: auth ? auth.signature : null, ts: Date.now() }, state.wallet));
     showToast('Gasless transfer executed', 'success');
@@ -230,6 +247,7 @@ async function doExecute(proposalId) {
 }
 
 async function doParseReceipt(file) {
+  if (file.size > 10 * 1024 * 1024) { showToast('Image too large (max 10 MB)', 'error'); return; }
   state.ocrLoading = true; render();
   try {
     const url = URL.createObjectURL(file);
@@ -249,7 +267,8 @@ function doNLQuery(query) {
 
 function addNote(text) {
   if (!text || !text.trim()) return;
-  const note = { id: Date.now(), text: text.trim(), ts: Date.now(), author: state.currentUser };
+  if (state.notes.length >= 500) { showToast('Notes limit reached (500)', 'error'); return; }
+  const note = { id: Date.now(), text: text.trim().substring(0, 500), ts: Date.now(), author: state.currentUser };
   state.notes.push(note);
   localStorage.setItem('pena_notes', JSON.stringify(state.notes));
   state.noteInput = '';
@@ -331,11 +350,17 @@ function downloadReport() {
 // RENDER
 // ═══════════════════════════════════════════════════════════════
 
+let renderScheduled = false;
 function render() {
-  const app = document.getElementById('app');
-  if (!app) return;
-  app.innerHTML = layout();
-  bindEvents();
+  if (renderScheduled) return;
+  renderScheduled = true;
+  requestAnimationFrame(() => {
+    renderScheduled = false;
+    const app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML = layout();
+    bindEvents();
+  });
 }
 
 const TABS = [
@@ -469,9 +494,9 @@ function renderFeed() {
         <div class="slide-in bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800">
           <h4 class="font-semibold mb-3">New Spending Proposal</h4>
           <div class="space-y-3">
-            <input id="prop-payee" type="text" placeholder="Payee" value="${escapeHtml(state.proposalReceipt?.payee || '')}" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+            <input id="prop-payee" type="text" placeholder="Payee" maxlength="100" value="${escapeHtml(state.proposalReceipt?.payee || '')}" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
             <input id="prop-amount" type="number" placeholder="USDt amount" value="${escapeHtml(String(state.proposalReceipt?.amount || ''))}" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
-            <input id="prop-purpose" type="text" placeholder="Purpose" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+            <input id="prop-purpose" type="text" placeholder="Purpose" maxlength="200" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
             <div class="flex gap-2 flex-wrap">
               ${quickPurposes.map(p => `<button data-quick-purpose="${escapeHtml(p)}" class="text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900">${escapeHtml(p)}</button>`).join('')}
             </div>
@@ -595,7 +620,7 @@ function renderBalance() {
           <span class="text-xs text-gray-400">Stored locally on device</span>
         </div>
         <div class="flex gap-2 mb-3">
-          <input id="note-input" type="text" placeholder="Add a note..." value="${escapeHtml(state.noteInput)}" class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+          <input id="note-input" type="text" placeholder="Add a note..." maxlength="500" value="${escapeHtml(state.noteInput)}" class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
           <button id="btn-note-add" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">Add</button>
         </div>
         <div class="space-y-2">
@@ -992,7 +1017,7 @@ function renderHelp() {
         <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('database', 'md')} Data Storage</h4>
         <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <p><strong>Wallet keys:</strong> Stored in browser localStorage on your device only. Never transmitted to any server.</p>
-          <p><strong>Ledger events:</strong> Stored in memory and synced via P2P. In production, persisted via Hypercore/Corestore on-device.</p>
+          <p><strong>Ledger events:</strong> Persisted in localStorage and synced via P2P. Events survive page reloads. In production, backed by Hypercore/Corestore.</p>
           <p><strong>Notes:</strong> Stored in browser localStorage on your device.</p>
           <p><strong>Receipts:</strong> Processed locally by Tesseract.js OCR. Images are not stored or transmitted.</p>
         </div>
