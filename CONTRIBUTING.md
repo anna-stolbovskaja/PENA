@@ -50,7 +50,13 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Testing
 
-There is no automated test suite. Manual testing checklist:
+Automated tests cover the core logic (ledger state machine, WDK utilities, QVAC categorization):
+
+```bash
+npm test
+```
+
+44 unit tests across 3 suites. Manual testing checklist for browser-only features:
 
 - [ ] Open in Chrome and Firefox — no console errors
 - [ ] Test on mobile viewport — bottom nav appears, no horizontal scroll
