@@ -1,10 +1,10 @@
 // PEÑA — Application logic
 // Wires together: ledger.js (state), p2p.js (sync), wdk.js (wallet), qvac.js (OCR + NL)
 
-import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, isApproved, getCategorySummary, getMemberContributions, escapeHtml } from './ledger.js';
-import { P2PNode } from './p2p.js';
-import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash } from './wdk.js';
-import { parseReceipt, queryLedger, initOCR } from './qvac.js';
+import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, isApproved, getCategorySummary, getMemberContributions, escapeHtml } from './lib/ledger.js';
+import { P2PNode } from './lib/p2p.js';
+import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash } from './lib/wdk.js';
+import { parseReceipt, queryLedger, initOCR } from './lib/qvac.js';
 
 // ═══════════════════════════════════════════════════════════════
 // APP STATE
