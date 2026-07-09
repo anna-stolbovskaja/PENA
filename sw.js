@@ -13,6 +13,8 @@ const APP_SHELL = [
   '/lib/qvac.js',
   '/lib/icons.js',
   '/lib/ui.js',
+  '/lib/i18n.js',
+  '/lib/actions.js',
   '/manifest.json',
   '/icon.svg',
 ];

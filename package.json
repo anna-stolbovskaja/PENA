@@ -10,6 +10,7 @@
     "test:wdk": "node --test tests/wdk.test.js",
     "test:signing": "node --test tests/signing.test.js",
     "test:qvac": "node --test tests/qvac.test.js",
+    "test:e2e": "node --test tests/e2e.test.js",
     "serve": "npx serve ."
   },
   "devDependencies": {

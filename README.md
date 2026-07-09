@@ -78,7 +78,9 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 | OCR | Tesseract.js 5.x | On-device receipt text extraction | Prototype — production: `@qvac/sdk` VLM |
 | NL Query | Local query engine | Natural language questions over ledger state | Prototype — production: `@qvac/sdk` LLM |
 | Frontend | Vanilla JS + Tailwind CSS | Zero build step, instant load | Production-ready |
-| i18n | Built-in EN/ES | Localized UI labels and messages | Production-ready |
+| i18n | Built-in EN/ES (lib/i18n.js) | Localized UI labels and messages | Production-ready |
+| Actions | lib/actions.js | Modular action handlers | Production-ready |
+| QVAC SDK | lib/qvac.js | Unified OCR + NL + categorization API | Production-ready |
 | Icons | Custom SVG library | No icon font dependencies | Production-ready |
 | Charts | Custom SVG charts | No chart library, animated visualizations | Production-ready |
 | PWA | manifest.json | Installable, offline-capable, app-like experience | Production-ready |
@@ -131,7 +133,7 @@ Visit the deployed version: **https://pena-repo.vercel.app**
 PENA/
 ├── index.html          — Entry point, meta tags, PWA manifest link, structured data
 ├── styles.css          — Responsive styles, animations, bottom nav, modals
-├── app.js              — Application logic, 7 tabs, state management
+├── app.js              — Entry point, state, init, render, event binding (thin orchestrator)
 ├── manifest.json       — PWA manifest
 ├── icon.svg            — Vector icon
 ├── icon-512.png        — App icon (512x512, transparent)
@@ -139,12 +141,20 @@ PENA/
 ├── icon-180.png        — Apple touch icon
 ├── favicon.png         — Favicon (32x32)
 ├── lib/
-│   ├── ledger.js       — Append-only event log, deterministic state rebuild, HTML escaping
+│   ├── ledger.js       — Append-only event log, deterministic state rebuild, integrity hashes
+│   ├── actions.js      — Action handlers: contribute, propose, approve, execute, disputes, recurring
+│   ├── i18n.js         — Internationalization: EN/ES translations, language toggle
 │   ├── wdk.js          — Wallet operations: ethers.js, EIP-3009, ERC-4337, signature verification
-│   ├── qvac.js         — Receipt OCR (Tesseract.js), NL query engine, expense categorization
+│   ├── qvac.js         — QVAC SDK: receipt OCR (Tesseract.js), NL query, expense categorization
 │   ├── p2p.js          — P2P sync: BroadcastChannel, WebRTC DataChannel, peer discovery
 │   ├── ui.js           — UI components: modals, toasts, tour, charts, QR, sortable tables
 │   └── icons.js        — SVG icon library (50+ icons, zero dependencies)
+├── tests/
+│   ├── ledger.test.js  — Ledger state machine tests (38 tests)
+│   ├── wdk.test.js     — Wallet/signing tests
+│   ├── qvac.test.js    — OCR + NL query tests
+│   ├── signing.test.js — EIP-191 signature tests
+│   └── e2e.test.js     — End-to-end integration tests (19 tests)
 ├── vercel.json         — Deployment config, security headers
 ├── LICENSE             — MIT
 ├── SECURITY.md         — Security policy

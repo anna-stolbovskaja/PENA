@@ -1,71 +1,25 @@
-// PEÑA — Application Logic
-// Wires: ledger.js (state), p2p.js (sync), wdk.js (wallet), qvac.js (OCR + NL)
-// UI: icons.js, ui.js (modals, toasts, tour, charts, QR, sortable tables)
+// PEÑA — Application Entry Point
+// Modules: ledger.js (state), p2p.js (sync), wdk.js (wallet), qvac.js (OCR + NL)
+// Actions: actions.js | Views: inline (render functions) | i18n: i18n.js
 
 import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, resetAppliedIds, isApproved, getCategorySummary, getMemberContributions, escapeHtml, sanitizeAmount } from './lib/ledger.js';
 import { P2PNode } from './lib/p2p.js';
 import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash, ethers } from './lib/wdk.js';
-import { parseReceipt, queryLedger, initOCR, categorizeExpense } from './lib/qvac.js';
+import { parseReceipt, queryLedger, initOCR, categorizeExpense, QVAC } from './lib/qvac.js';
 import { icon, icons } from './lib/icons.js';
 import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText } from './lib/ui.js';
-
-
-// ═══════════════════════════════════════════════════════════════
-// I18N
-// ═══════════════════════════════════════════════════════════════
-
-const LANG = {
-  en: {
-    balance: 'Balance', members: 'Members', contribute: 'Contribute', proposal: 'Proposal',
-    audit: 'Audit Feed', proposals: 'Proposals', pending: 'Pending', executed: 'Executed',
-    approve: 'Approve', execute: 'Execute', approved: 'Approved', settings: 'Settings',
-    income: 'Income', expenses: 'Expenses', notes: 'Notes', addNote: 'Add',
-    query: 'Query', queryPlaceholder: 'e.g. how much on buses?', search: 'Search',
-    payee: 'Payee', amount: 'Amount', purpose: 'Purpose', create: 'Create', cancel: 'Cancel',
-    demo: 'Demo', live: 'Live', help: 'Help', reports: 'Reports', matches: 'Matches',
-    exportReport: 'Export', copyReport: 'Copy', download: 'Download', budgetTracker: 'Budget Tracker',
-    onboarding_welcome: 'Welcome to PEÑA!', onboarding_step1: 'Your self-custody wallet has been generated.',
-    onboarding_step2: 'Start by exploring Demo mode, or switch to Live to create your real treasury.',
-    onboarding_step3: 'Invite members via P2P tab — share QR code or peer ID.',
-    noActivity: 'No activity yet', gasless: 'gasless', onChain: 'on-chain',
-    disputeTitle: 'Flag Transaction', disputeReason: 'Reason for dispute',
-    disputeSubmit: 'Submit Dispute', disputeList: 'Disputed Items',
-    recurringTitle: 'Recurring Contribution', recurringInterval: 'Interval',
-    recurringWeekly: 'Weekly', recurringMonthly: 'Monthly',
-    transparencyTitle: 'Public Transparency', transparencyDesc: 'Shareable read-only treasury summary',
-    insufficientBalance: 'Insufficient treasury balance', invalidAmount: 'Invalid amount (1–1,000,000)',
-    sigVerified: 'Signature verified', sigInvalid: 'Signature unverified',
-    roleFounder: 'Founder', roleApprover: 'Approver', roleMember: 'Member', roleViewer: 'Viewer',
-    budgetLimitExceeded: 'Budget limit exceeded for this role',
-  },
-  es: {
-    balance: 'Saldo', members: 'Miembros', contribute: 'Contribuir', proposal: 'Propuesta',
-    audit: 'Registro de auditoría', proposals: 'Propuestas', pending: 'Pendiente', executed: 'Ejecutado',
-    approve: 'Aprobar', execute: 'Ejecutar', approved: 'Aprobado', settings: 'Ajustes',
-    income: 'Ingresos', expenses: 'Gastos', notes: 'Notas', addNote: 'Agregar',
-    query: 'Consulta', queryPlaceholder: 'ej. cuánto en buses?', search: 'Buscar',
-    payee: 'Beneficiario', amount: 'Monto', purpose: 'Propósito', create: 'Crear', cancel: 'Cancelar',
-    demo: 'Demo', live: 'Real', help: 'Ayuda', reports: 'Informes', matches: 'Partidos',
-    exportReport: 'Exportar', copyReport: 'Copiar', download: 'Descargar', budgetTracker: 'Presupuesto',
-    onboarding_welcome: '¡Bienvenido a PEÑA!', onboarding_step1: 'Tu billetera de autocustodia fue generada.',
-    onboarding_step2: 'Explora el modo Demo o cambia a Real para crear tu tesorería.',
-    onboarding_step3: 'Invita miembros desde P2P — comparte código QR o peer ID.',
-    noActivity: 'Sin actividad', gasless: 'sin gas', onChain: 'on-chain',
-    disputeTitle: 'Disputar Transacción', disputeReason: 'Razón de la disputa',
-    disputeSubmit: 'Enviar Disputa', disputeList: 'Elementos Disputados',
-    recurringTitle: 'Contribución Recurrente', recurringInterval: 'Intervalo',
-    recurringWeekly: 'Semanal', recurringMonthly: 'Mensual',
-    transparencyTitle: 'Transparencia Pública', transparencyDesc: 'Resumen de tesorería compartible',
-    insufficientBalance: 'Saldo insuficiente en la tesorería', invalidAmount: 'Monto inválido (1–1.000.000)',
-    sigVerified: 'Firma verificada', sigInvalid: 'Firma no verificada',
-    roleFounder: 'Fundador', roleApprover: 'Aprobador', roleMember: 'Miembro', roleViewer: 'Observador',
-    budgetLimitExceeded: 'Límite de presupuesto excedido para este rol',
-  },
-};
-
-function t(key) {
-  return (LANG[state.lang] || LANG.en)[key] || (LANG.en)[key] || key;
-}
+import { t, setLang, getLang } from './lib/i18n.js';
+import {
+  emitEvent, persistEvents,
+  doContribute, doCreateProposal, doApprove, doExecute,
+  doParseReceipt, verifySigCached,
+  flagDispute, resolveDispute,
+  addRecurring, cancelRecurring,
+  downloadTransparency,
+  requestNotifications, sendLocalNotification,
+  doNLQuery, addNote, deleteNote,
+  generateReport, downloadReport,
+} from './lib/actions.js';
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -89,7 +43,7 @@ const state = {
   ocrLoading: false,
   nlInput: '',
   nlResult: '',
-  mode: 'demo', // 'demo' or 'real'
+  mode: 'demo',
   notes: [],
   noteInput: '',
   sortKey: -1,
@@ -104,17 +58,11 @@ const state = {
   calcMembers: 0,
   calcAmount: 0,
   calcSplitMode: 'equal',
-  // Tifo budget tracker
   tifoBudgets: [],
-  // i18n
   lang: 'en',
-  // Onboarding
   onboardingDone: false,
-  // Disputes
   disputes: [],
-  // Recurring contributions
   recurring: [],
-  // Role budget limits (per-role max proposal amount)
   roleLimits: { founder: Infinity, approver: 5000, member: 500, viewer: 0 },
 };
 
@@ -123,37 +71,18 @@ const state = {
 // ═══════════════════════════════════════════════════════════════
 
 function init() {
-  // Load mode
   const savedMode = localStorage.getItem('pena_mode');
   if (savedMode === 'real') state.mode = 'real';
 
-  // Load notes
-  try {
-    state.notes = JSON.parse(localStorage.getItem('pena_notes') || '[]');
-  } catch { state.notes = []; }
+  try { state.notes = JSON.parse(localStorage.getItem('pena_notes') || '[]'); } catch { state.notes = []; }
+  try { state.tifoBudgets = JSON.parse(localStorage.getItem('pena_tifo_budgets') || '[]'); } catch { state.tifoBudgets = []; }
+  try { state.disputes = JSON.parse(localStorage.getItem('pena_disputes') || '[]'); } catch { state.disputes = []; }
+  try { state.recurring = JSON.parse(localStorage.getItem('pena_recurring') || '[]'); } catch { state.recurring = []; }
 
-  // Load tifo budgets
-  try {
-    state.tifoBudgets = JSON.parse(localStorage.getItem('pena_tifo_budgets') || '[]');
-  } catch { state.tifoBudgets = []; }
-
-  // Load language
   state.lang = localStorage.getItem('pena_lang') || (navigator.language?.startsWith('es') ? 'es' : 'en');
-
-  // Load onboarding flag
+  setLang(state.lang);
   state.onboardingDone = localStorage.getItem('pena_onboarding') === 'done';
 
-  // Load disputes
-  try {
-    state.disputes = JSON.parse(localStorage.getItem('pena_disputes') || '[]');
-  } catch { state.disputes = []; }
-
-  // Load recurring contributions
-  try {
-    state.recurring = JSON.parse(localStorage.getItem('pena_recurring') || '[]');
-  } catch { state.recurring = []; }
-
-  // Load wallet
   const savedWallet = localStorage.getItem('pena_wallet');
   if (savedWallet) {
     try { state.wallet = JSON.parse(savedWallet); } catch { state.wallet = generateWallet(); }
@@ -164,7 +93,6 @@ function init() {
 
   state.smartAccount = createSmartAccount(state.threshold, [{ address: state.wallet.address }]);
 
-  // Init P2P
   try {
     state.p2p = new P2PNode();
     state.p2p.getStateSnapshot = () => ({
@@ -175,10 +103,10 @@ function init() {
     });
     state.p2p.onEvent((msg) => {
       if (msg.type === 'event') {
-        if (msg.event && msg.event.id && state.events.some(e => e.id === msg.event.id)) return; // duplicate
+        if (msg.event && msg.event.id && state.events.some(e => e.id === msg.event.id)) return;
         state.events.push(msg.event);
         applyEvent(state, msg.event);
-        persistEvents();
+        persistEvents(state);
         render();
         showToast('Synced via P2P', 'p2p');
         sendLocalNotification('PEÑA', 'New activity synced via P2P');
@@ -192,7 +120,6 @@ function init() {
     state.p2p.onPeerChange((peers) => { state.peers = peers; render(); });
   } catch (err) { console.error('P2P init error:', err.message); }
 
-  // Load persisted ledger events
   const savedEvents = localStorage.getItem('pena_events');
   if (savedEvents) {
     try {
@@ -205,11 +132,9 @@ function init() {
     } catch { /* ignore corrupt data */ }
   }
 
-  // Seed data only if no persisted events
   if (state.mode === 'demo' && state.members.length === 0) { seedData(); seedMatches(); }
   render();
 
-  // Hide skeleton, show app
   const skeleton = document.getElementById('skeleton');
   const app = document.getElementById('app');
   if (skeleton) skeleton.style.display = 'none';
@@ -246,8 +171,28 @@ function init() {
     }, 500);
   }
 
-  // Tour
   if (shouldShowTour()) setTimeout(startTour, 1000);
+}
+
+function switchMode(mode) {
+  state.mode = mode;
+  localStorage.setItem('pena_mode', mode);
+  localStorage.removeItem('pena_events');
+  if (mode === 'real') {
+    state.members = []; state.contributions = []; state.proposals = [];
+    state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
+    state.currentUser = null;
+    const self = { id: 'me', name: 'You', role: 'founder', walletAddr: state.wallet.address };
+    emitEvent(state, createEvent(EVENT_TYPES.MEMBER_JOIN, self, state.wallet), render);
+    state.currentUser = 'me';
+  } else {
+    state.members = []; state.contributions = []; state.proposals = [];
+    state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
+    state.currentUser = null;
+    seedData(); seedMatches();
+  }
+  render();
+  showToast(mode === 'demo' ? 'Demo mode loaded' : 'Real mode activated', 'info');
 }
 
 function seedData() {
@@ -305,282 +250,6 @@ function seedMatches() {
   ];
 }
 
-// ═══════════════════════════════════════════════════════════════
-// ACTIONS
-// ═══════════════════════════════════════════════════════════════
-
-function emitEvent(event) {
-  state.events.push(event);
-  applyEvent(state, event);
-  if (state.p2p) state.p2p.broadcast({ type: 'event:broadcast', from: state.p2p.peerId, event });
-  persistEvents();
-  render();
-}
-
-const MAX_PERSISTED_EVENTS = 5000;
-function persistEvents() {
-  try {
-    const toStore = state.events.length > MAX_PERSISTED_EVENTS
-      ? state.events.slice(-MAX_PERSISTED_EVENTS)
-      : state.events;
-    localStorage.setItem('pena_events', JSON.stringify(toStore));
-  } catch {
-    // Quota exceeded — try with fewer events
-    try {
-      localStorage.setItem('pena_events', JSON.stringify(state.events.slice(-1000)));
-    } catch { /* give up silently */ }
-  }
-}
-
-async function doContribute(amount) {
-  const amt = sanitizeAmount(amount);
-  if (!amt || amt <= 0 || amt > 1000000) { showToast('Invalid amount (1–1,000,000)', 'error'); return; }
-  amount = amt;
-  try {
-    const auth = await signTransferAuthorization(state.wallet.privateKey, { to: state.smartAccount.address, amount });
-    if (!auth) { showToast('Signing failed', 'error'); return; }
-    emitEvent(createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: state.currentUser, amount, txHash: simulateTxHash(), authSignature: auth.signature, authNonce: auth.nonce, ts: Date.now() }, state.wallet));
-    state.showContribute = false;
-    showToast(`${amount} USDt contributed (gasless)`, 'success');
-  } catch (err) { showToast('Error: ' + err.message, 'error'); }
-}
-
-async function doCreateProposal(payee, amount, purpose, category) {
-  const amt = sanitizeAmount(amount);
-  if (!payee || !payee.trim() || !amt || amt <= 0 || amt > 1000000 || !purpose || !purpose.trim()) { showToast('Fill all fields with valid data', 'error'); return; }
-  amount = amt;
-  // Role-based budget limit
-  const currentMember = state.members.find(m => m.id === state.currentUser);
-  const roleLimit = state.roleLimits[currentMember?.role] ?? Infinity;
-  if (amount > roleLimit) { showToast(t('budgetLimitExceeded') + ` (max ${roleLimit} USDt)`, 'error'); return; }
-
-  const id = 'p' + Date.now();
-  const cats = state.proposalCategories.length > 0 ? state.proposalCategories : [category || 'Other'];
-  const catStr = cats.join(', ');
-  emitEvent(createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id, payee, amount: Number(amount), currency: 'USDt', purpose, category: catStr, categories: cats, createdBy: state.currentUser, ts: Date.now() }, state.wallet));
-  if (state.proposalReceipt) emitEvent(createEvent(EVENT_TYPES.RECEIPT_PARSE, { proposalId: id, parsed: state.proposalReceipt }, state.wallet));
-  state.showProposal = false; state.proposalReceipt = null; state.proposalCategories = [];
-  showToast('Proposal created and synced', 'success');
-}
-
-async function doApprove(proposalId) {
-  try {
-    const msg = `approve:${proposalId}:${state.currentUser}`;
-    const sig = await signMessage(state.wallet.privateKey, msg);
-    if (!sig) { showToast('Signing failed', 'error'); return; }
-    emitEvent(createEvent(EVENT_TYPES.PROPOSAL_APPROVE, { proposalId, memberId: state.currentUser, sig, ts: Date.now() }, state.wallet));
-    showToast('Approval signed', 'success');
-  } catch (err) { showToast('Error: ' + err.message, 'error'); }
-}
-
-async function doExecute(proposalId) {
-  try {
-    const proposal = state.proposals.find(p => p.id === proposalId);
-    if (!proposal || !checkThreshold(proposal, state.threshold)) { showToast('Not enough approvals', 'error'); return; }
-    if (state.balance < proposal.amount) { showToast('Insufficient treasury balance', 'error'); return; }
-    const auth = await signTransferAuthorization(state.wallet.privateKey, { to: proposal.payee, amount: proposal.amount });
-    emitEvent(createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId, txHash: simulateTxHash(), authSignature: auth ? auth.signature : null, ts: Date.now() }, state.wallet));
-    showToast('Gasless transfer executed', 'success');
-  } catch (err) { showToast('Error: ' + err.message, 'error'); }
-}
-
-async function doParseReceipt(file) {
-  if (file.size > 10 * 1024 * 1024) { showToast('Image too large (max 10 MB)', 'error'); return; }
-  state.ocrLoading = true; render();
-  try {
-    const url = URL.createObjectURL(file);
-    const result = await parseReceipt(url);
-    URL.revokeObjectURL(url);
-    state.proposalReceipt = result; state.ocrLoading = false;
-    if (result.error) showToast('OCR: ' + result.error, 'error');
-    else showToast(`Receipt: ${result.payee} - ${result.amount} USDt - ${result.category}`, 'success');
-    render();
-  } catch (err) { state.ocrLoading = false; showToast('OCR error: ' + err.message, 'error'); render(); }
-}
-
-// Signature verification cache
-const sigCache = new Map();
-function verifySigCached(approvalData, proposal, member) {
-  if (!approvalData.sig || !member.walletAddr || !proposal) return null;
-  const key = approvalData.sig + ':' + member.walletAddr;
-  if (sigCache.has(key)) return sigCache.get(key);
-  try {
-    const msg = `approve:${approvalData.proposalId}:${approvalData.memberId}`;
-    const result = verifySignature(msg, approvalData.sig, member.walletAddr);
-    sigCache.set(key, result);
-    return result;
-  } catch { sigCache.set(key, null); return null; }
-}
-
-// ── Dispute Resolution ─────────────────────────────────────────
-function flagDispute(proposalId, reason) {
-  if (!proposalId || !reason?.trim()) { showToast('Provide a reason', 'error'); return; }
-  const dispute = {
-    id: 'd' + Date.now(),
-    proposalId,
-    reason: reason.trim().substring(0, 300),
-    filedBy: state.currentUser,
-    ts: Date.now(),
-    status: 'open',
-  };
-  state.disputes.push(dispute);
-  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
-  showToast(t('disputeSubmit') + ' ✓', 'success');
-  render();
-}
-
-function resolveDispute(disputeId) {
-  const d = state.disputes.find(d => d.id === disputeId);
-  if (d) { d.status = 'resolved'; d.resolvedAt = Date.now(); }
-  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
-  render();
-}
-
-// ── Recurring Contributions ────────────────────────────────────
-function addRecurring(amount, interval) {
-  if (!amount || amount <= 0) { showToast(t('invalidAmount'), 'error'); return; }
-  const r = {
-    id: 'r' + Date.now(),
-    amount: sanitizeAmount(amount),
-    interval, // 'weekly' or 'monthly'
-    nextDue: Date.now() + (interval === 'weekly' ? 7 * 86400000 : 30 * 86400000),
-    active: true,
-  };
-  state.recurring.push(r);
-  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
-  showToast(t('recurringTitle') + ': ' + r.amount + ' USDt ' + interval, 'success');
-  render();
-}
-
-function cancelRecurring(id) {
-  state.recurring = state.recurring.filter(r => r.id !== id);
-  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
-  render();
-}
-
-// ── Public Transparency Page ───────────────────────────────────
-function generateTransparencyHTML() {
-  const totalIn = state.contributions.reduce((s, c) => s + (Number(c.amount) || 0), 0);
-  const totalOut = state.proposals.filter(p => p.status === 'executed').reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const cats = getCategorySummary(state);
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PEÑA — ${escapeHtml(state.groupName)} Treasury</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f8fafc;color:#1e293b;padding:2rem;max-width:800px;margin:0 auto}.card{background:white;border-radius:1rem;padding:1.5rem;margin-bottom:1rem;box-shadow:0 1px 3px rgba(0,0,0,.1)}.stat{display:inline-block;margin-right:2rem;margin-bottom:1rem}.stat-label{font-size:.75rem;color:#64748b}.stat-value{font-size:1.5rem;font-weight:700}.green{color:#16a34a}.blue{color:#2563eb}.orange{color:#ea580c}table{width:100%;border-collapse:collapse;font-size:.875rem}th,td{text-align:left;padding:.5rem;border-bottom:1px solid #e2e8f0}th{color:#64748b;font-weight:600}h1{font-size:1.5rem;margin-bottom:.5rem}h2{font-size:1rem;margin-bottom:.75rem;color:#475569}.footer{text-align:center;margin-top:2rem;font-size:.75rem;color:#94a3b8}</style></head><body><h1>PEÑA — ${escapeHtml(state.groupName)}</h1><p style="color:#64748b;margin-bottom:1.5rem">Public Treasury Report · Generated ${new Date().toLocaleDateString()}</p><div class="card"><div class="stat"><p class="stat-label">${t('balance')}</p><p class="stat-value green">${state.balance} USDt</p></div><div class="stat"><p class="stat-label">${t('income')}</p><p class="stat-value blue">${totalIn} USDt</p></div><div class="stat"><p class="stat-label">${t('expenses')}</p><p class="stat-value orange">${totalOut} USDt</p></div><div class="stat"><p class="stat-label">${t('members')}</p><p class="stat-value">${state.members.length}</p></div></div><div class="card"><h2>Expenses by Category</h2><table><tr><th>Category</th><th>Amount</th></tr>${Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,a])=>`<tr><td>${escapeHtml(c)}</td><td>${a} USDt</td></tr>`).join('')}</table></div><div class="card"><h2>Contributions</h2><table><tr><th>Member</th><th>Amount</th></tr>${state.contributions.map(c=>{const m=state.members.find(m=>m.id===c.memberId);return `<tr><td>${escapeHtml(m?m.name:'?')}</td><td>${c.amount} USDt</td></tr>`;}).join('')}</table></div><div class="card"><h2>Proposals</h2><table><tr><th>Payee</th><th>Amount</th><th>Status</th><th>Approvals</th></tr>${state.proposals.map(p=>`<tr><td>${escapeHtml(p.payee)}</td><td>${p.amount} USDt</td><td>${p.status}</td><td>${p.approvals.length}/${state.threshold}</td></tr>`).join('')}</table></div><p class="footer">PEÑA — Transparent Self-Custody Treasury · pena-repo.vercel.app</p></body></html>`;
-}
-
-function downloadTransparency() {
-  const html = generateTransparencyHTML();
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `pena-transparency-${Date.now()}.html`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast(t('transparencyTitle') + ' downloaded', 'success');
-}
-
-// ── Push Notifications ─────────────────────────────────────────
-async function requestNotifications() {
-  if (!('Notification' in window)) { showToast('Notifications not supported', 'error'); return false; }
-  if (Notification.permission === 'granted') return true;
-  const result = await Notification.requestPermission();
-  if (result === 'granted') { showToast('Notifications enabled', 'success'); return true; }
-  showToast('Notifications denied', 'error');
-  return false;
-}
-
-function sendLocalNotification(title, body) {
-  if (Notification.permission !== 'granted') return;
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({ type: 'SHOW_NOTIFICATION', title, body, tag: 'pena-' + Date.now() });
-  } else {
-    new Notification(title, { body, icon: '/icon.svg' });
-  }
-}
-
-function doNLQuery(query) {
-  try { state.nlInput = query; state.nlResult = queryLedger(state, query); render(); }
-  catch (err) { state.nlResult = 'Error: ' + err.message; render(); }
-}
-
-function addNote(text) {
-  if (!text || !text.trim()) return;
-  if (state.notes.length >= 500) { showToast('Notes limit reached (500)', 'error'); return; }
-  const note = { id: Date.now(), text: text.trim().substring(0, 500), ts: Date.now(), author: state.currentUser };
-  state.notes.push(note);
-  localStorage.setItem('pena_notes', JSON.stringify(state.notes));
-  state.noteInput = '';
-  showToast('Note added', 'success');
-  render();
-}
-
-function deleteNote(id) {
-  state.notes = state.notes.filter(n => n.id !== id);
-  localStorage.setItem('pena_notes', JSON.stringify(state.notes));
-  render();
-}
-
-function switchMode(mode) {
-  state.mode = mode;
-  localStorage.setItem('pena_mode', mode);
-  localStorage.removeItem('pena_events');
-  if (mode === 'real') {
-    state.members = []; state.contributions = []; state.proposals = [];
-    state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
-    state.currentUser = null;
-    const self = { id: 'me', name: 'You', role: 'founder', walletAddr: state.wallet.address };
-    emitEvent(createEvent(EVENT_TYPES.MEMBER_JOIN, self, state.wallet));
-    state.currentUser = 'me';
-  } else {
-    state.members = []; state.contributions = []; state.proposals = [];
-    state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
-    state.currentUser = null;
-    seedData(); seedMatches();
-  }
-  render();
-  showToast(mode === 'demo' ? 'Demo mode loaded' : 'Real mode activated', 'info');
-}
-
-function generateReport() {
-  const totalIn = state.contributions.reduce((s, c) => s + (Number(c.amount) || 0), 0);
-  const totalOut = state.proposals.filter(p => p.status === 'executed').reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const cats = getCategorySummary(state);
-  const byM = getMemberContributions(state);
-  const report = `PEÑA Treasury Report - ${state.groupName}
-Generated: ${new Date().toISOString()}
-
-SUMMARY
-=======
-Balance: ${state.balance} USDt
-Total Income: ${totalIn} USDt
-Total Expenses: ${totalOut} USDt
-Members: ${state.members.length}
-Proposals: ${state.proposals.length} (${state.proposals.filter(p => p.status === 'executed').length} executed, ${state.proposals.filter(p => p.status === 'pending').length} pending)
-
-EXPENSES BY CATEGORY
-====================
-${Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([c, a]) => `${c}: ${a} USDt`).join('\n')}
-
-CONTRIBUTIONS BY MEMBER
-=======================
-${Object.entries(byM).sort((a, b) => b[1] - a[1]).map(([n, a]) => `${n}: ${a} USDt`).join('\n')}
-
-TRANSACTIONS
-============
-${state.contributions.map(c => { const m = state.members.find(m => m.id === c.memberId); return `[IN]  ${c.amount} USDt from ${m ? m.name : '?'} - ${shortenHash(c.txHash)}`; }).join('\n')}
-${state.executions.map(e => { const p = state.proposals.find(p => p.id === e.proposalId); return `[OUT] ${p ? p.amount : 0} USDt to ${p ? p.payee : '?'} - ${shortenHash(e.txHash)}`; }).join('\n')}
-`;
-  return report;
-}
-
-function downloadReport() {
-  const report = generateReport();
-  const blob = new Blob([report], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `pena-report-${Date.now()}.txt`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('Report downloaded', 'success');
-}
 
 // ═══════════════════════════════════════════════════════════════
 // RENDER
@@ -1385,6 +1054,7 @@ function renderFooter() {
   return `<div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-800 text-center"><p class="text-xs text-gray-400 flex items-center justify-center gap-1">${icon('shield', 'sm')} PEÑA - Transparent Self-Custody Treasury - WDK + Pears + QVAC</p><p class="text-xs text-gray-400 mt-1"><a href="https://github.com/anna-stolbovskaja/PENA" target="_blank" class="hover:text-green-500 transition-smooth flex items-center justify-center gap-1">${icon('github', 'sm')} github.com/anna-stolbovskaja/PENA</a></p></div>`;
 }
 
+
 // ═══════════════════════════════════════════════════════════════
 // EVENT BINDING
 // ═══════════════════════════════════════════════════════════════
@@ -1398,38 +1068,38 @@ function bindEvents() {
 
   // Contribute
   const bc = document.getElementById('btn-contribute'); if (bc) bc.addEventListener('click', () => { state.showContribute = !state.showContribute; state.showProposal = false; render(); });
-  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(parseInt(document.getElementById('contrib-amount').value, 10)));
+  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(state, parseInt(document.getElementById('contrib-amount').value, 10), render));
   const bcCancel = document.getElementById('btn-contrib-cancel'); if (bcCancel) bcCancel.addEventListener('click', () => { state.showContribute = false; render(); });
   document.querySelectorAll('[data-quick-amount]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('contrib-amount'); if (inp) { inp.value = btn.dataset.quickAmount; } }));
 
   // Propose
   const bp = document.getElementById('btn-propose'); if (bp) bp.addEventListener('click', () => { state.showProposal = !state.showProposal; state.showContribute = false; render(); });
-  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount').value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
+  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount').value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(state, payee, amount, purpose, state.proposalReceipt?.category, render); });
   const bpCancel = document.getElementById('btn-prop-cancel'); if (bpCancel) bpCancel.addEventListener('click', () => { state.showProposal = false; state.proposalReceipt = null; render(); });
   document.querySelectorAll('[data-quick-purpose]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('prop-purpose'); if (inp) inp.value = btn.dataset.quickPurpose; }));
   document.querySelectorAll('[data-cat-toggle]').forEach(btn => btn.addEventListener('click', () => { const cat = btn.dataset.catToggle; const idx = state.proposalCategories.indexOf(cat); if (idx >= 0) state.proposalCategories.splice(idx, 1); else state.proposalCategories.push(cat); render(); }));
 
   // Receipt upload
-  const ru = document.getElementById('receipt-upload'); if (ru) ru.addEventListener('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if (e.target.files[0]) doParseReceipt(e.target.files[0]); }; input.click(); });
+  const ru = document.getElementById('receipt-upload'); if (ru) ru.addEventListener('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if (e.target.files[0]) doParseReceipt(state, e.target.files[0], render); }; input.click(); });
 
   // Approve / Execute
-  document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => doApprove(btn.dataset.approve)));
-  document.querySelectorAll('[data-execute]').forEach(btn => btn.addEventListener('click', () => doExecute(btn.dataset.execute)));
+  document.querySelectorAll('[data-approve]').forEach(btn => btn.addEventListener('click', () => doApprove(state, btn.dataset.approve, render)));
+  document.querySelectorAll('[data-execute]').forEach(btn => btn.addEventListener('click', () => doExecute(state, btn.dataset.execute, render)));
 
   // NL Query
-  const nl = document.getElementById('btn-nl'); if (nl) nl.addEventListener('click', () => { const v = document.getElementById('nl-input').value.trim(); if (v) doNLQuery(v); });
-  const nlIn = document.getElementById('nl-input'); if (nlIn) nlIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const v = nlIn.value.trim(); if (v) doNLQuery(v); } });
-  document.querySelectorAll('[data-suggest]').forEach(btn => btn.addEventListener('click', () => doNLQuery(btn.dataset.suggest)));
+  const nl = document.getElementById('btn-nl'); if (nl) nl.addEventListener('click', () => { const v = document.getElementById('nl-input').value.trim(); if (v) doNLQuery(state, v, render); });
+  const nlIn = document.getElementById('nl-input'); if (nlIn) nlIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const v = nlIn.value.trim(); if (v) doNLQuery(state, v, render); } });
+  document.querySelectorAll('[data-suggest]').forEach(btn => btn.addEventListener('click', () => doNLQuery(state, btn.dataset.suggest, render)));
   const nlCopy = document.getElementById('btn-nl-copy'); if (nlCopy) nlCopy.addEventListener('click', () => { copyToClipboard(state.nlResult).then(() => showToast('Copied', 'success')); });
 
   // Notes
-  const noteAdd = document.getElementById('btn-note-add'); if (noteAdd) noteAdd.addEventListener('click', () => { const inp = document.getElementById('note-input'); if (inp) addNote(inp.value); });
+  const noteAdd = document.getElementById('btn-note-add'); if (noteAdd) noteAdd.addEventListener('click', () => { const inp = document.getElementById('note-input'); if (inp) addNote(state, inp.value, render); });
   const noteIn = document.getElementById('note-input'); if (noteIn) noteIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') addNote(noteIn.value); });
-  document.querySelectorAll('[data-note-delete]').forEach(btn => btn.addEventListener('click', () => deleteNote(parseInt(btn.dataset.noteDelete, 10))));
+  document.querySelectorAll('[data-note-delete]').forEach(btn => btn.addEventListener('click', () => deleteNote(state, parseInt(btn.dataset.noteDelete, 10), render)));
 
   // Reports
-  const reportDl = document.getElementById('btn-report-download'); if (reportDl) reportDl.addEventListener('click', downloadReport);
-  const reportCopy = document.getElementById('btn-report-copy'); if (reportCopy) reportCopy.addEventListener('click', () => { copyToClipboard(generateReport()).then(() => showToast('Report copied', 'success')); });
+  const reportDl = document.getElementById('btn-report-download'); if (reportDl) reportDl.addEventListener('click', () => downloadReport(state));
+  const reportCopy = document.getElementById('btn-report-copy'); if (reportCopy) reportCopy.addEventListener('click', () => { copyToClipboard(generateReport(state)).then(() => showToast('Report copied', 'success')); });
 
   // Copy buttons
   document.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => { copyToClipboard(btn.dataset.copy).then(() => showToast('Copied to clipboard', 'success')); }));
@@ -1491,17 +1161,17 @@ function bindEvents() {
       const sub = document.getElementById('dispute-submit');
       if (sub) sub.addEventListener('click', () => {
         const reason = document.getElementById('dispute-reason')?.value;
-        flagDispute(pid, reason);
+        flagDispute(state, pid, reason, render);
         closeModal();
       });
     }, 100);
   }));
 
   // Resolve dispute
-  document.querySelectorAll('[data-resolve-dispute]').forEach(btn => btn.addEventListener('click', () => resolveDispute(btn.dataset.resolveDispute)));
+  document.querySelectorAll('[data-resolve-dispute]').forEach(btn => btn.addEventListener('click', () => resolveDispute(state, btn.dataset.resolveDispute, render)));
 
   // Cancel recurring
-  document.querySelectorAll('[data-cancel-recurring]').forEach(btn => btn.addEventListener('click', () => cancelRecurring(btn.dataset.cancelRecurring)));
+  document.querySelectorAll('[data-cancel-recurring]').forEach(btn => btn.addEventListener('click', () => cancelRecurring(state, btn.dataset.cancelRecurring, render)));
 
   // Add recurring
   const addRec = document.getElementById('btn-add-recurring');
@@ -1521,7 +1191,7 @@ function bindEvents() {
       if (save) save.addEventListener('click', () => {
         const amt = parseFloat(document.getElementById('recurring-amount')?.value || '0');
         const interval = document.getElementById('recurring-interval')?.value || 'monthly';
-        addRecurring(amt, interval);
+        addRecurring(state, amt, interval, render);
         closeModal();
       });
     }, 100);
@@ -1529,7 +1199,7 @@ function bindEvents() {
 
   // Transparency download
   const transBtn = document.getElementById('btn-transparency');
-  if (transBtn) transBtn.addEventListener('click', downloadTransparency);
+  if (transBtn) transBtn.addEventListener('click', () => downloadTransparency(state));
 
   // Sortable tables
   document.querySelectorAll('table[id^="sortable-table-"]').forEach(t => attachSortable(t.id));
@@ -1560,6 +1230,7 @@ function bindEvents() {
     }
   });
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // START

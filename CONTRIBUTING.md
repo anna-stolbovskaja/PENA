@@ -56,7 +56,7 @@ Automated tests cover the core logic (ledger state machine, WDK utilities, QVAC 
 npm test
 ```
 
-69 unit tests across 4 suites (ledger, wdk, qvac, signing). Manual testing checklist for browser-only features:
+88 tests across 5 suites (ledger, wdk, qvac, signing, e2e). Manual testing checklist for browser-only features:
 
 - [ ] Open in Chrome and Firefox — no console errors
 - [ ] Test on mobile viewport — bottom nav appears, no horizontal scroll
