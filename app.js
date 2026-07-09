@@ -338,7 +338,7 @@ function renderHeader() {
         <span>M-of-N: ${state.threshold}/${state.members.filter(m => m.role !== 'member').length}</span>
         <span class="font-mono hidden sm:inline">${shortenHash(state.wallet?.address || '', 8, 6)}</span>
         <button data-lang-toggle class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">${state.lang === 'es' ? 'EN' : 'ES'}</button>
-        <button data-theme-toggle class="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">${document.documentElement.classList.contains('dark') ? '☀️' : '🌙'}</button>
+        <button data-theme-toggle aria-label="Toggle theme" class="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">${document.documentElement.classList.contains('dark') ? '☀️' : '🌙'}</button>
         <button data-mode-toggle class="ml-auto px-2 py-0.5 rounded-full text-xs ${state.mode === 'demo' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'}">${state.mode === 'demo' ? t('demo') : t('live')}</button>
       </div>
     </div>
@@ -355,8 +355,8 @@ function renderDesktopTabs() {
 
 function renderBottomNav() {
   return `
-    <nav class="bottom-nav">
-      ${getTabs().map(tb => `<button data-tab="${tb.id}" class="bottom-nav-item ${state.activeTab === tb.id ? 'active' : ''}">${icon(tb.icon, 'md')}<span>${tb.label}</span></button>`).join('')}
+    <nav class="bottom-nav" role="tablist" aria-label="Navigation">
+      ${getTabs().map(tb => `<button data-tab="${tb.id}" role="tab" aria-selected="${state.activeTab === tb.id}" aria-label="${tb.label}" class="bottom-nav-item ${state.activeTab === tb.id ? 'active' : ''}">${icon(tb.icon, 'md')}<span>${tb.label}</span></button>`).join('')}
     </nav>
   `;
 }
@@ -398,8 +398,8 @@ function renderFeed() {
   return `
     <div class="space-y-3" data-tour="actions">
       <div class="flex gap-2">
-        <button id="btn-contribute" class="flex-1 py-2.5 px-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('contribute_btn')}</button>
-        <button id="btn-propose" class="flex-1 py-2.5 px-3 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('propose_btn')}</button>
+        <button id="btn-contribute" aria-label="${t('contribute_btn')}" class="flex-1 py-2.5 px-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('contribute_btn')}</button>
+        <button id="btn-propose" aria-label="${t('propose_btn')}" class="flex-1 py-2.5 px-3 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('propose_btn')}</button>
       </div>
       ${state.showContribute ? `
         <div class="slide-in bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800">
@@ -1356,5 +1356,5 @@ try {
   }
 }
 
-window.addEventListener('error', (e) => console.error('PEÑA runtime error:', e.error || e.message));
-window.addEventListener('unhandledrejection', (e) => console.error('PEÑA unhandled promise:', e.reason));
+window.addEventListener('error', (e) => { console.error('PEÑA runtime error:', e.error || e.message); try { showToast('Something went wrong. Please reload.', 'error'); } catch {} });
+window.addEventListener('unhandledrejection', (e) => { console.error('PEÑA unhandled promise:', e.reason); e.preventDefault(); try { showToast('Something went wrong. Please reload.', 'error'); } catch {} });
