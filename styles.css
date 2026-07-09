@@ -50,6 +50,9 @@ body {
 /* Tab active */
 .tab-active { border-bottom: 2px solid var(--pena-green); color: var(--pena-green); }
 
+/* Cursor: pointer on interactive elements */
+button, [role="button"], .tab-btn, .bottom-nav-item, a, select, input[type="file"], .receipt-drop { cursor: pointer; }
+
 /* Badges */
 .badge-pending { background: #fef3c7; color: #92400e; }
 .badge-approved { background: #d1fae5; color: #065f46; }
@@ -138,8 +141,8 @@ body {
 
 /* Tour highlight — element appears above dark overlay */
 .tour-highlight {
-  position: relative;
-  z-index: 41;
+  position: relative !important;
+  z-index: 45 !important;
   border-radius: 12px;
   box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.8);
   background: white;
@@ -147,6 +150,11 @@ body {
 }
 .dark .tour-highlight {
   background: #111827;
+}
+
+/* Tour tooltip must be above everything */
+#tour-overlay > div:not(#tour-backdrop) {
+  z-index: 50 !important;
 }
 
 /* QR code */

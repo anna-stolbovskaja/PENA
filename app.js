@@ -7,7 +7,7 @@ import { P2PNode } from './lib/p2p.js';
 import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash, ethers } from './lib/wdk.js';
 import { parseReceipt, queryLedger, initOCR, categorizeExpense, QVAC } from './lib/qvac.js';
 import { icon, icons } from './lib/icons.js';
-import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText } from './lib/ui.js';
+import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText, htmlCell } from './lib/ui.js';
 import { t, setLang, getLang } from './lib/i18n.js';
 import {
   emitEvent, persistEvents,
@@ -64,6 +64,7 @@ const state = {
   disputes: [],
   recurring: [],
   roleLimits: { founder: Infinity, approver: 5000, member: 500, viewer: 0 },
+  feedFilter: 'all',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -131,6 +132,15 @@ function init() {
       }
     } catch { /* ignore corrupt data */ }
   }
+
+  // URL hash routing
+  const validTabs = ['feed','proposals','balance','reports','matches','calc','query','p2p','help'];
+  const hashTab = window.location.hash.replace('#', '');
+  if (validTabs.includes(hashTab)) state.activeTab = hashTab;
+  window.addEventListener('hashchange', () => {
+    const tab = window.location.hash.replace('#', '');
+    if (validTabs.includes(tab) && tab !== state.activeTab) { state.activeTab = tab; render(); }
+  });
 
   if (state.mode === 'demo' && state.members.length === 0) { seedData(); seedMatches(); }
   render();
@@ -268,17 +278,19 @@ function render() {
   });
 }
 
-const TABS = [
-  { id: 'feed', label: 'Audit', icon: 'audit' },
-  { id: 'proposals', label: 'Proposals', icon: 'proposals' },
-  { id: 'balance', label: 'Balance', icon: 'balance' },
-  { id: 'reports', label: 'Reports', icon: 'reports' },
-  { id: 'matches', label: 'Matches', icon: 'star' },
-  { id: 'calc', label: 'Calc', icon: 'chart' },
-  { id: 'query', label: 'Query', icon: 'query' },
-  { id: 'p2p', label: 'P2P', icon: 'p2p' },
-  { id: 'help', label: 'Help', icon: 'help' },
-];
+function getTabs() {
+  return [
+    { id: 'feed', label: t('feed'), icon: 'audit' },
+    { id: 'proposals', label: t('proposals'), icon: 'proposals' },
+    { id: 'balance', label: t('tabBalance'), icon: 'balance' },
+    { id: 'reports', label: t('tabReports'), icon: 'reports' },
+    { id: 'matches', label: t('tabMatches'), icon: 'star' },
+    { id: 'calc', label: t('tabCalc'), icon: 'chart' },
+    { id: 'query', label: t('tabQuery'), icon: 'query' },
+    { id: 'p2p', label: t('tabP2P'), icon: 'p2p' },
+    { id: 'help', label: t('tabHelp'), icon: 'help' },
+  ];
+}
 
 function layout() {
   return `
@@ -299,7 +311,7 @@ function renderHeader() {
     <div data-tour="balance" class="bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-700 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">P</div>
+          <img src="/pena.png" alt="PEÑA" class="w-10 h-10 rounded-xl flex-shrink-0">
           <div class="min-w-0">
             <h1 class="text-lg sm:text-xl font-bold truncate">PEÑA</h1>
             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${escapeHtml(state.groupName)}</p>
@@ -326,6 +338,7 @@ function renderHeader() {
         <span>M-of-N: ${state.threshold}/${state.members.filter(m => m.role !== 'member').length}</span>
         <span class="font-mono hidden sm:inline">${shortenHash(state.wallet?.address || '', 8, 6)}</span>
         <button data-lang-toggle class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">${state.lang === 'es' ? 'EN' : 'ES'}</button>
+        <button data-theme-toggle class="px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300">${document.documentElement.classList.contains('dark') ? '☀️' : '🌙'}</button>
         <button data-mode-toggle class="ml-auto px-2 py-0.5 rounded-full text-xs ${state.mode === 'demo' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'}">${state.mode === 'demo' ? t('demo') : t('live')}</button>
       </div>
     </div>
@@ -335,7 +348,7 @@ function renderHeader() {
 function renderDesktopTabs() {
   return `
     <div data-tour="tabs" class="desktop-tabs flex gap-1 mt-4 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
-      ${TABS.map(t => `<button data-tab="${t.id}" class="tab-btn px-3 sm:px-4 py-2.5 font-medium text-sm whitespace-nowrap transition-smooth flex items-center gap-1.5 ${state.activeTab === t.id ? 'tab-active' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">${icon(t.icon, 'sm')} <span class="hidden sm:inline">${t.label}</span></button>`).join('')}
+      ${getTabs().map(tb => `<button data-tab="${tb.id}" class="tab-btn px-3 sm:px-4 py-2.5 font-medium text-sm whitespace-nowrap transition-smooth flex items-center gap-1.5 ${state.activeTab === tb.id ? 'tab-active' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}">${icon(tb.icon, 'sm')} <span class="hidden sm:inline">${tb.label}</span></button>`).join('')}
     </div>
   `;
 }
@@ -343,7 +356,7 @@ function renderDesktopTabs() {
 function renderBottomNav() {
   return `
     <nav class="bottom-nav">
-      ${TABS.map(t => `<button data-tab="${t.id}" class="bottom-nav-item ${state.activeTab === t.id ? 'active' : ''}">${icon(t.icon, 'md')}<span>${t.label}</span></button>`).join('')}
+      ${getTabs().map(tb => `<button data-tab="${tb.id}" class="bottom-nav-item ${state.activeTab === tb.id ? 'active' : ''}">${icon(tb.icon, 'md')}<span>${tb.label}</span></button>`).join('')}
     </nav>
   `;
 }
@@ -366,12 +379,18 @@ function renderTab() {
 // ─── FEED ──────────────────────────────────────────────────────
 
 function renderFeed() {
-  const events = [];
-  state.members.forEach(m => events.push({ ts: m.ts || Date.now(), type: 'member', data: m }));
-  state.contributions.forEach(c => events.push({ ts: c.ts, type: 'contribution', data: c }));
-  state.proposals.forEach(p => { events.push({ ts: p.ts, type: 'proposal', data: p }); p.approvals.forEach(a => events.push({ ts: a.ts, type: 'approval', data: a, proposal: p })); });
-  state.executions.forEach(e => { const p = state.proposals.find(p => p.id === e.proposalId); events.push({ ts: e.ts, type: 'execution', data: e, proposal: p }); });
-  events.sort((a, b) => b.ts - a.ts);
+  const allEvents = [];
+  state.members.forEach(m => allEvents.push({ ts: m.ts || Date.now(), type: 'member', data: m }));
+  state.contributions.forEach(c => allEvents.push({ ts: c.ts, type: 'contribution', data: c }));
+  state.proposals.forEach(p => { allEvents.push({ ts: p.ts, type: 'proposal', data: p }); p.approvals.forEach(a => allEvents.push({ ts: a.ts, type: 'approval', data: a, proposal: p })); });
+  state.executions.forEach(e => { const p = state.proposals.find(p => p.id === e.proposalId); allEvents.push({ ts: e.ts, type: 'execution', data: e, proposal: p }); });
+  allEvents.sort((a, b) => b.ts - a.ts);
+
+  // Apply filter
+  const events = state.feedFilter === 'all' ? allEvents :
+    state.feedFilter === 'contributions' ? allEvents.filter(e => e.type === 'contribution') :
+    state.feedFilter === 'proposals' ? allEvents.filter(e => e.type === 'proposal' || e.type === 'approval') :
+    state.feedFilter === 'executions' ? allEvents.filter(e => e.type === 'execution') : allEvents;
 
   const quickAmounts = [50, 100, 200, 500];
   const quickPurposes = ['Bus rental', 'Tifo materials', 'Match tickets', 'Equipment', 'Charity'];
@@ -379,8 +398,8 @@ function renderFeed() {
   return `
     <div class="space-y-3" data-tour="actions">
       <div class="flex gap-2">
-        <button id="btn-contribute" class="flex-1 py-2.5 px-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} Contribute</button>
-        <button id="btn-propose" class="flex-1 py-2.5 px-3 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} Proposal</button>
+        <button id="btn-contribute" class="flex-1 py-2.5 px-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('contribute_btn')}</button>
+        <button id="btn-propose" class="flex-1 py-2.5 px-3 rounded-xl bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium text-sm transition-smooth flex items-center justify-center gap-2">${icon('plus', 'sm')} ${t('propose_btn')}</button>
       </div>
       ${state.showContribute ? `
         <div class="slide-in bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800">
@@ -423,23 +442,27 @@ function renderFeed() {
         </div>
       ` : ''}
       <div data-tour="feed" class="mt-4">
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">${icon('list', 'sm')} AUDIT FEED - TRANSPARENT AND IMMUTABLE</h3>
+        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">${icon('list', 'sm')} ${t('auditFeedTitle')} — ${t('transparent')}</h3>
+        <div class="flex gap-2 mb-3 flex-wrap">
+          ${['all','contributions','proposals','executions'].map(f => `<button data-feed-filter="${f}" class="text-xs px-3 py-1.5 rounded-full transition-smooth ${state.feedFilter === f ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-green-100 dark:hover:bg-green-900'}">${t('filter' + f.charAt(0).toUpperCase() + f.slice(1))}</button>`).join('')}
+        </div>
         <div class="space-y-2">
-          ${events.length === 0 ? '<p class="text-center text-gray-400 py-8">No activity yet</p>' : events.slice(0, 50).map(feedItem).join('')}
+          ${events.length === 0 ? `<p class="text-center text-gray-400 py-8">${t('noActivity')}</p>` : events.slice(0, 50).map(feedItem).join('')}
         </div>
       </div>
     </div>
   `;
 }
 
-function feedItem(e) {
+function feedItem(e, idx) {
   const time = new Date(e.ts).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   const member = (id) => state.members.find(m => m.id === id);
-  if (e.type === 'member') return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-green-600 dark:text-green-400 flex-shrink-0">${icon('user', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(e.data.name)} joined</p><p class="text-xs text-gray-400">${escapeHtml(e.data.role)} - ${time}</p></div></div>`;
-  if (e.type === 'contribution') { const m = member(e.data.memberId); return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900"><div class="w-8 h-8 rounded-full bg-green-200 dark:bg-green-800 flex items-center justify-center text-green-700 dark:text-green-300 flex-shrink-0">${icon('arrowUp', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} contributed <span class="text-green-600 dark:text-green-400 font-bold">${e.data.amount} USDt</span></p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0">on-chain</span></div>`; }
-  if (e.type === 'proposal') { const m = member(e.data.createdBy); return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-100 dark:border-yellow-900"><div class="w-8 h-8 rounded-full bg-yellow-200 dark:bg-yellow-800 flex items-center justify-center text-yellow-700 dark:text-yellow-300 flex-shrink-0">${icon('proposals', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} proposed <span class="font-bold">${e.data.amount} USDt</span> to ${escapeHtml(e.data.payee)}</p><p class="text-xs text-gray-400 truncate">${escapeHtml(e.data.purpose)} - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full ${e.data.status === 'executed' ? 'badge-executed' : 'badge-pending'} flex-shrink-0">${e.data.status === 'executed' ? 'executed' : 'pending'}</span></div>`; }
-  if (e.type === 'approval') { const m = member(e.data.memberId); const sigValid = e.data.sig && m && m.walletAddr ? verifySigCached(e.data, e.proposal, m) : null; return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 flex-shrink-0">${icon('check', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm truncate">${escapeHtml(m ? m.name : '?')} approved: ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.sig || '', 8, 6)} - ${time}</p></div>${sigValid === true ? `<span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0 flex items-center gap-1">${icon('shield', 'sm')} ${t('sigVerified')}</span>` : sigValid === false ? `<span class="text-xs px-2 py-1 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 flex-shrink-0">${t('sigInvalid')}</span>` : ''}</div>`; }
-  if (e.type === 'execution') { return `<div class="slide-in flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900"><div class="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-300 flex-shrink-0">${icon('arrowDown', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">Executed: <span class="font-bold">${e.proposal ? e.proposal.amount : 0} USDt</span> to ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} - gasless - ${time}</p></div><span class="text-xs px-2 py-1 rounded-full badge-executed flex-shrink-0">on-chain</span></div>`; }
+  const clickable = 'cursor-pointer hover:ring-2 hover:ring-green-400 hover:ring-offset-1 dark:hover:ring-offset-gray-950';
+  if (e.type === 'member') return `<div data-feed-detail="${e.type}:${escapeHtml(e.data.id)}" class="${clickable} slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-green-600 dark:text-green-400 flex-shrink-0">${icon('user', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(e.data.name)} joined</p><p class="text-xs text-gray-400">${escapeHtml(e.data.role)} — ${time}</p></div></div>`;
+  if (e.type === 'contribution') { const m = member(e.data.memberId); return `<div data-feed-detail="${e.type}:${escapeHtml(e.data.memberId)}" class="${clickable} slide-in flex items-center gap-3 p-3 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900"><div class="w-8 h-8 rounded-full bg-green-200 dark:bg-green-800 flex items-center justify-center text-green-700 dark:text-green-300 flex-shrink-0">${icon('arrowUp', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} contributed <span class="text-green-600 dark:text-green-400 font-bold">${e.data.amount} USDt</span></p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} — ${time}</p></div><span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0">${t('onChain')}</span></div>`; }
+  if (e.type === 'proposal') { const m = member(e.data.createdBy); return `<div data-feed-detail="${e.type}:${escapeHtml(e.data.id)}" class="${clickable} slide-in flex items-center gap-3 p-3 rounded-xl bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-100 dark:border-yellow-900"><div class="w-8 h-8 rounded-full bg-yellow-200 dark:bg-yellow-800 flex items-center justify-center text-yellow-700 dark:text-yellow-300 flex-shrink-0">${icon('proposals', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">${escapeHtml(m ? m.name : '?')} proposed <span class="font-bold">${e.data.amount} USDt</span> to ${escapeHtml(e.data.payee)}</p><p class="text-xs text-gray-400 truncate">${escapeHtml(e.data.purpose)} — ${time}</p></div><span class="text-xs px-2 py-1 rounded-full ${e.data.status === 'executed' ? 'badge-executed' : 'badge-pending'} flex-shrink-0">${e.data.status === 'executed' ? t('executed') : t('pending')}</span></div>`; }
+  if (e.type === 'approval') { const m = member(e.data.memberId); const sigValid = e.data.sig && m && m.walletAddr ? verifySigCached(e.data, e.proposal, m) : null; return `<div data-feed-detail="${e.type}:${escapeHtml(e.data.memberId)}" class="${clickable} slide-in flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800"><div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 flex-shrink-0">${icon('check', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm truncate">${escapeHtml(m ? m.name : '?')} approved: ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.sig || '', 8, 6)} — ${time}</p></div>${sigValid === true ? `<span class="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 flex-shrink-0 flex items-center gap-1">${icon('shield', 'sm')} ${t('sigVerified')}</span>` : sigValid === false ? `<span class="text-xs px-2 py-1 rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 flex-shrink-0">${t('sigInvalid')}</span>` : ''}</div>`; }
+  if (e.type === 'execution') { return `<div data-feed-detail="${e.type}:${escapeHtml(e.data.proposalId)}" class="${clickable} slide-in flex items-center gap-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900"><div class="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-300 flex-shrink-0">${icon('arrowDown', 'sm')}</div><div class="flex-1 min-w-0"><p class="text-sm font-medium truncate">Executed: <span class="font-bold">${e.proposal ? e.proposal.amount : 0} USDt</span> to ${escapeHtml(e.proposal ? e.proposal.payee : '')}</p><p class="text-xs text-gray-400 font-mono truncate">${shortenHash(e.data.txHash)} — ${t('gasless')} — ${time}</p></div><span class="text-xs px-2 py-1 rounded-full badge-executed flex-shrink-0">${t('onChain')}</span></div>`; }
   return '';
 }
 
@@ -521,8 +544,8 @@ function renderBalance() {
         ${sortableTable(
           [{ label: 'Type' }, { label: 'Amount' }, { label: 'From/To' }, { label: 'Tx Hash' }, { label: 'Time' }],
           [
-            ...state.contributions.slice().reverse().map(c => { const m = state.members.find(m => m.id === c.memberId); return [`IN`, `<span class="text-green-600 dark:text-green-400">${c.amount} USDt</span>`, escapeHtml(m ? m.name : ''), `<span class="font-mono text-gray-400">${shortenHash(c.txHash)}</span>`, new Date(c.ts).toLocaleDateString('en')]; }),
-            ...state.executions.slice().reverse().map(e => { const p = state.proposals.find(p => p.id === e.proposalId); return [`OUT`, `<span class="text-blue-600 dark:text-blue-400">${p ? p.amount : 0} USDt</span>`, escapeHtml(p ? p.payee : ''), `<span class="font-mono text-gray-400">${shortenHash(e.txHash)}</span>`, new Date(e.ts).toLocaleDateString('en')]; }),
+            ...state.contributions.slice().reverse().map(c => { const m = state.members.find(m => m.id === c.memberId); return [`IN`, htmlCell(`<span class="text-green-600 dark:text-green-400">${c.amount} USDt</span>`), escapeHtml(m ? m.name : ''), htmlCell(`<span class="font-mono text-gray-400">${shortenHash(c.txHash)}</span>`), new Date(c.ts).toLocaleDateString('en')]; }),
+            ...state.executions.slice().reverse().map(e => { const p = state.proposals.find(p => p.id === e.proposalId); return [`OUT`, htmlCell(`<span class="text-blue-600 dark:text-blue-400">${p ? p.amount : 0} USDt</span>`), escapeHtml(p ? p.payee : ''), htmlCell(`<span class="font-mono text-gray-400">${shortenHash(e.txHash)}</span>`), new Date(e.ts).toLocaleDateString('en')]; }),
           ]
         )}
       </div>
@@ -683,7 +706,7 @@ function renderMatches() {
             const d = new Date(m.date).toLocaleDateString('en', { month: 'short', day: 'numeric' });
             const ourScore = m.home ? m.scoreHome : m.scoreAway;
             const oppScore = m.home ? m.scoreAway : m.scoreHome;
-            const result = ourScore > oppScore ? '<span class="text-green-600 font-medium">W</span>' : ourScore === oppScore ? '<span class="text-gray-500">D</span>' : '<span class="text-red-500 font-medium">L</span>';
+            const result = ourScore > oppScore ? htmlCell('<span class="text-green-600 font-medium">W</span>') : ourScore === oppScore ? htmlCell('<span class="text-gray-500">D</span>') : htmlCell('<span class="text-red-500 font-medium">L</span>');
             return [d, escapeHtml(m.opponent), escapeHtml(m.venue), `${ourScore} - ${oppScore}`, result];
           })
         )}
@@ -1056,15 +1079,96 @@ function renderFooter() {
 
 
 // ═══════════════════════════════════════════════════════════════
+// FEED DETAIL MODAL
+// ═══════════════════════════════════════════════════════════════
+
+function showFeedDetail(type, id) {
+  let title = '', body = '';
+  if (type === 'member') {
+    const m = state.members.find(m => m.id === id);
+    if (!m) return;
+    const contribs = state.contributions.filter(c => c.memberId === id);
+    const totalContrib = contribs.reduce((s, c) => s + c.amount, 0);
+    const proposals = state.proposals.filter(p => p.createdBy === id);
+    const approvals = state.proposals.reduce((s, p) => s + p.approvals.filter(a => a.memberId === id).length, 0);
+    title = escapeHtml(m.name);
+    body = `<div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Role</p><p class="font-medium text-sm">${escapeHtml(m.role)}</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Total Contributed</p><p class="font-medium text-sm">${totalContrib} USDt</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Proposals</p><p class="font-medium text-sm">${proposals.length}</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Approvals</p><p class="font-medium text-sm">${approvals}</p></div>
+      </div>
+      <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400 mb-1">Wallet</p><p class="font-mono text-xs break-all">${escapeHtml(m.walletAddr || '')}</p></div>
+    </div>`;
+  } else if (type === 'contribution') {
+    const contribs = state.contributions.filter(c => c.memberId === id);
+    const m = state.members.find(m => m.id === id);
+    title = `Contribution — ${escapeHtml(m ? m.name : '?')}`;
+    body = `<div class="space-y-2">${contribs.map(c => `<div class="flex justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950/30"><div><p class="text-sm font-medium">${c.amount} USDt</p><p class="text-xs text-gray-400">${new Date(c.ts).toLocaleString()}</p></div><p class="font-mono text-xs text-gray-400">${escapeHtml(c.txHash || '')}</p></div>`).join('')}</div>`;
+  } else if (type === 'proposal') {
+    const p = state.proposals.find(p => p.id === id);
+    if (!p) return;
+    const creator = state.members.find(m => m.id === p.createdBy);
+    title = `Proposal — ${escapeHtml(p.payee)}`;
+    body = `<div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Amount</p><p class="font-bold text-lg">${p.amount} USDt</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Status</p><p class="font-medium text-sm">${p.status}</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Category</p><p class="font-medium text-sm">${escapeHtml(p.category || 'Other')}</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Created by</p><p class="font-medium text-sm">${escapeHtml(creator ? creator.name : '?')}</p></div>
+      </div>
+      <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Purpose</p><p class="text-sm">${escapeHtml(p.purpose)}</p></div>
+      <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Date</p><p class="text-sm">${new Date(p.ts).toLocaleString()}</p></div>
+      ${p.approvals.length > 0 ? `<div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400 mb-2">Approvals (${p.approvals.length}/${state.threshold})</p>${p.approvals.map(a => { const am = state.members.find(m => m.id === a.memberId); return `<p class="text-xs font-mono">${escapeHtml(am ? am.name : '?')} — ${shortenHash(a.sig || '', 8, 6)}</p>`; }).join('')}</div>` : ''}
+    </div>`;
+  } else if (type === 'approval') {
+    const m = state.members.find(m => m.id === id);
+    title = `Approval — ${escapeHtml(m ? m.name : '?')}`;
+    const approved = state.proposals.filter(p => p.approvals.some(a => a.memberId === id));
+    body = `<div class="space-y-2">${approved.map(p => `<div class="flex justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><div><p class="text-sm font-medium">${escapeHtml(p.payee)} — ${p.amount} USDt</p><p class="text-xs text-gray-400">${escapeHtml(p.purpose)}</p></div><span class="text-xs px-2 py-1 rounded-full ${p.status === 'executed' ? 'badge-executed' : 'badge-pending'}">${p.status}</span></div>`).join('')}</div>`;
+  } else if (type === 'execution') {
+    const p = state.proposals.find(p => p.id === id);
+    const ex = state.executions.find(e => e.proposalId === id);
+    title = `Execution — ${escapeHtml(p ? p.payee : '?')}`;
+    body = `<div class="space-y-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Amount</p><p class="font-bold text-lg">${p ? p.amount : 0} USDt</p></div>
+        <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Payee</p><p class="font-medium text-sm">${escapeHtml(p ? p.payee : '?')}</p></div>
+      </div>
+      ${ex ? `<div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Tx Hash</p><p class="font-mono text-xs break-all">${escapeHtml(ex.txHash || '')}</p></div>
+      <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800"><p class="text-xs text-gray-400">Date</p><p class="text-sm">${new Date(ex.ts).toLocaleString()}</p></div>` : ''}
+    </div>`;
+  }
+  if (title) showModal(title, body);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // EVENT BINDING
 // ═══════════════════════════════════════════════════════════════
 
 function bindEvents() {
   // Tabs
-  document.querySelectorAll('[data-tab]').forEach(btn => btn.addEventListener('click', () => { state.activeTab = btn.dataset.tab; state.showContribute = false; state.showProposal = false; render(); }));
+  document.querySelectorAll('[data-tab]').forEach(btn => btn.addEventListener('click', () => { state.activeTab = btn.dataset.tab; state.showContribute = false; state.showProposal = false; window.location.hash = btn.dataset.tab; render(); }));
+
+  // Feed filter
+  document.querySelectorAll('[data-feed-filter]').forEach(btn => btn.addEventListener('click', () => { state.feedFilter = btn.dataset.feedFilter; render(); }));
+
+  // Feed detail click
+  document.querySelectorAll('[data-feed-detail]').forEach(el => el.addEventListener('click', () => {
+    const [type, id] = el.dataset.feedDetail.split(':');
+    showFeedDetail(type, id);
+  }));
 
   // Mode toggle
   document.querySelectorAll('[data-mode-toggle]').forEach(btn => btn.addEventListener('click', () => { switchMode(state.mode === 'demo' ? 'real' : 'demo'); }));
+
+  // Theme toggle
+  document.querySelectorAll('[data-theme-toggle]').forEach(btn => btn.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('pena_theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    render();
+  }));
 
   // Contribute
   const bc = document.getElementById('btn-contribute'); if (bc) bc.addEventListener('click', () => { state.showContribute = !state.showContribute; state.showProposal = false; render(); });
@@ -1144,6 +1248,7 @@ function bindEvents() {
   // Language toggle
   document.querySelectorAll('[data-lang-toggle]').forEach(btn => btn.addEventListener('click', () => {
     state.lang = state.lang === 'en' ? 'es' : 'en';
+    setLang(state.lang);
     localStorage.setItem('pena_lang', state.lang);
     render();
   }));

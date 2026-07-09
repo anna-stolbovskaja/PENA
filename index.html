@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="PEÑA — Transparent Self-Custody Treasury">
   <meta property="og:description" content="Collective wallet with transparent P2P ledger for football fan groups. No treasurer fraud, no opaque cash.">
-  <meta property="og:image" content="/icon-512.png">
+  <meta property="og:image" content="/pena.png">
   <meta property="og:url" content="https://pena-repo.vercel.app">
   <meta property="og:site_name" content="PEÑA">
 
@@ -21,7 +21,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="PEÑA — Transparent Self-Custody Treasury">
   <meta name="twitter:description" content="Collective wallet with transparent P2P ledger for football fan groups.">
-  <meta name="twitter:image" content="/icon-512.png">
+  <meta name="twitter:image" content="/pena.png">
 
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
@@ -42,10 +42,13 @@
     @custom-variant dark (&:where(.dark, .dark *));
   </style>
   <script>
-    document.documentElement.classList.toggle(
-      'dark',
-      window.matchMedia('(prefers-color-scheme: dark)').matches
-    );
+    (function() {
+      var saved = localStorage.getItem('pena_theme');
+      document.documentElement.classList.toggle(
+        'dark',
+        saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches
+      );
+    })();
   </script>
 
   <!-- Structured Data -->
