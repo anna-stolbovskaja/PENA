@@ -1,0 +1,27 @@
+{
+  "name": "pena",
+  "version": "0.1.0",
+  "description": "Transparent self-custody treasury for football fan groups — WDK + Pears + QVAC",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "pear run --dev .",
+    "start": "pear run .",
+    "test": "node --test tests/",
+    "lint": "eslint . --ext .js,.ts,.tsx",
+    "build": "pear build ."
+  },
+  "dependencies": {
+    "@tetherto/wdk": "latest",
+    "wdk-wallet-evm-erc-4337": "latest",
+    "autobase": "^1.0.0",
+    "hypercore": "^10.0.0",
+    "hyperswarm": "^4.0.0",
+    "corestore": "^6.0.0",
+    "hyperblobs": "^2.0.0",
+    "@qvac/sdk": "latest"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}
