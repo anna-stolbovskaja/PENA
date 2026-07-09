@@ -91,7 +91,7 @@ Visit the deployed version: **https://pena-repo.vercel.app**
 
 ### Demo Video
 
-**TODO: Add demo video link here (max 3 minutes, required for submission)**
+**[Demo video link will be added here — ≤3 min, required for submission]**
 
 ---
 
