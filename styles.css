@@ -130,13 +130,17 @@ body {
 .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }
 .sort-arrow.active { opacity: 1; color: var(--pena-green); }
 
-/* Tour highlight — dims everything except the target */
+/* Tour highlight — element appears above dark overlay */
 .tour-highlight {
   position: relative;
   z-index: 41;
   border-radius: 12px;
-  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.6), 0 0 0 9999px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 0 0 4px rgba(0, 168, 107, 0.8);
+  background: white;
   transition: box-shadow 0.3s ease;
+}
+.dark .tour-highlight {
+  background: #111827;
 }
 
 /* QR code */
