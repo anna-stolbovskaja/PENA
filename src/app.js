@@ -959,7 +959,7 @@ function renderP2P() {
   const inviteCode = state.p2p?.peerId || '';
   const notifStatus = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported';
   return `
-    <div class="space-y-4">
+    <div class="space-y-4" data-tour="p2p">
       <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
         <div class="flex items-center justify-between mb-3">
           <h4 class="font-semibold flex items-center gap-2">${icon('bell', 'sm')} Notifications</h4>

@@ -95,18 +95,21 @@ function showToast(message, type = 'info', duration = 5000) {
 // ═══════════════════════════════════════════════════════════════
 
 const TOUR_STEPS = [
-  { selector: '[data-tour="balance"]', title: 'Treasury Balance', text: 'This shows the current USDt balance, total members, and connected peers. The balance updates in real-time as contributions and expenses happen.' },
-  { selector: '[data-tour="tabs"]', title: 'Navigation', text: 'Switch between Audit Feed, Proposals, Balance, Reports, NL Query, P2P Sync, and Help. On mobile, these appear as bottom navigation buttons.' },
-  { selector: '[data-tour="actions"]', title: 'Quick Actions', text: 'Contribute funds to the treasury or create a spending proposal. All actions are signed with your wallet and synced across peers.' },
-  { selector: '[data-tour="feed"]', title: 'Audit Feed', text: 'Every transaction is recorded here — contributions, proposals, approvals, and executions. This is the transparent, immutable ledger visible to all members.' },
-  { selector: '[data-tour="p2p"]', title: 'P2P Sync', text: 'Open this app in another browser tab to see real-time P2P synchronization. No server required — all data syncs directly between devices.' },
+  { selector: '[data-tour="balance"]', title: 'Treasury Balance', text: 'This shows the current USDt balance, total members, and connected peers. The balance updates in real-time as contributions and expenses happen.', tab: 'feed' },
+  { selector: '[data-tour="tabs"]', title: 'Navigation', text: 'Switch between Audit Feed, Proposals, Balance, Reports, NL Query, P2P Sync, and Help. On mobile, these appear as bottom navigation buttons.', tab: 'feed' },
+  { selector: '[data-tour="actions"]', title: 'Quick Actions', text: 'Contribute funds to the treasury or create a spending proposal. All actions are signed with your wallet and synced across peers.', tab: 'feed' },
+  { selector: '[data-tour="feed"]', title: 'Audit Feed', text: 'Every transaction is recorded here — contributions, proposals, approvals, and executions. This is the transparent, immutable ledger visible to all members.', tab: 'feed' },
+  { selector: '[data-tour="p2p"]', title: 'P2P Sync', text: 'Open this app in another browser tab to see real-time P2P synchronization. No server required — all data syncs directly between devices.', tab: 'p2p' },
 ];
 
 let tourStep = 0;
 
 function startTour() {
   tourStep = 0;
-  showTourStep();
+  // Switch to feed tab so tour elements are in the DOM
+  const feedTab = document.querySelector('[data-tab="feed"]');
+  if (feedTab) feedTab.click();
+  setTimeout(showTourStep, 300);
 }
 
 function showTourStep() {
@@ -125,6 +128,17 @@ function showTourStep() {
   }
 
   const step = TOUR_STEPS[tourStep];
+
+  // Switch to required tab if target is not in current view
+  if (step.tab) {
+    const tabBtn = document.querySelector(`[data-tab="${step.tab}"]`);
+    if (tabBtn && !document.querySelector(step.selector)) {
+      tabBtn.click();
+      setTimeout(showTourStep, 300);
+      return;
+    }
+  }
+
   const target = document.querySelector(step.selector);
 
   overlay.style.display = 'block';
