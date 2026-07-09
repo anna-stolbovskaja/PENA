@@ -112,24 +112,88 @@ function startTour() {
   setTimeout(showTourStep, 300);
 }
 
+function closeTour() {
+  const overlay = document.getElementById('tour-overlay');
+  if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+  const tip = document.getElementById('tour-tooltip');
+  if (tip) tip.remove();
+  document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+  localStorage.setItem('pena_tour_done', '1');
+}
+
+function positionTooltip(target, step) {
+  const old = document.getElementById('tour-tooltip');
+  if (old) old.remove();
+
+  const rect = target.getBoundingClientRect();
+  const tooltip = document.createElement('div');
+  tooltip.id = 'tour-tooltip';
+  tooltip.className = 'fixed bg-white dark:bg-gray-900 rounded-xl p-5 shadow-2xl border-2 border-green-500 max-w-sm scale-in';
+  tooltip.style.pointerEvents = 'auto';
+  tooltip.style.zIndex = '9999';
+
+  const tooltipWidth = 320;
+  const tooltipHeight = 200;
+  let top = rect.bottom + 12;
+  let left = rect.left;
+
+  if (top + tooltipHeight > window.innerHeight - 20) top = rect.top - tooltipHeight - 12;
+  if (top < 20) top = 20;
+  if (left + tooltipWidth > window.innerWidth - 20) left = window.innerWidth - tooltipWidth - 20;
+  if (left < 20) left = 20;
+
+  tooltip.style.top = top + 'px';
+  tooltip.style.left = left + 'px';
+  tooltip.style.maxWidth = 'calc(100vw - 40px)';
+
+  tooltip.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center">${tourStep + 1}</span>
+        <span class="text-xs text-gray-400">${tourStep + 1} of ${TOUR_STEPS.length}</span>
+      </div>
+      <button id="tour-skip-btn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded transition-smooth">${icon('close', 'sm')}</button>
+    </div>
+    <h4 class="font-bold text-base mb-2 text-gray-900 dark:text-white">${escapeText(step.title)}</h4>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">${escapeText(step.text)}</p>
+    <div class="flex gap-2">
+      <button id="tour-next-btn" class="flex-1 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-smooth flex items-center justify-center gap-1">
+        ${tourStep < TOUR_STEPS.length - 1 ? 'Next ' + icon('arrowRight', 'sm') : 'Get Started ' + icon('check', 'sm')}
+      </button>
+      <button id="tour-skip-btn2" class="px-4 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth">Skip</button>
+    </div>
+  `;
+  document.body.appendChild(tooltip);
+
+  const nextBtn = document.getElementById('tour-next-btn');
+  const skipBtns = [document.getElementById('tour-skip-btn'), document.getElementById('tour-skip-btn2')];
+
+  if (nextBtn) nextBtn.onclick = () => {
+    target.classList.remove('tour-highlight');
+    tourStep++;
+    showTourStep();
+  };
+
+  skipBtns.forEach(btn => {
+    if (btn) btn.onclick = () => closeTour();
+  });
+}
+
 function showTourStep() {
   const overlay = document.getElementById('tour-overlay');
   if (!overlay) return;
 
-  // Clean up previous highlight
   document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+  const oldTip = document.getElementById('tour-tooltip');
+  if (oldTip) oldTip.remove();
 
   if (tourStep >= TOUR_STEPS.length) {
-    overlay.style.display = 'none';
-    overlay.style.background = 'transparent';
-    overlay.innerHTML = '';
-    localStorage.setItem('pena_tour_done', '1');
+    closeTour();
     return;
   }
 
   const step = TOUR_STEPS[tourStep];
 
-  // Switch to required tab if target is not in current view
   if (step.tab) {
     const tabBtn = document.querySelector(`[data-tab="${step.tab}"]`);
     if (tabBtn && !document.querySelector(step.selector)) {
@@ -143,89 +207,24 @@ function showTourStep() {
 
   overlay.style.display = 'block';
   overlay.style.pointerEvents = 'none';
-  overlay.innerHTML = '';
+  overlay.innerHTML = '<div id="tour-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9997;pointer-events:none"></div>';
 
   if (target) {
-    // Build overlay content: dark backdrop + tooltip
-    overlay.innerHTML = '<div id="tour-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9997;pointer-events:none"></div>';
-    
-    // Scroll target into view AFTER adding backdrop
     target.classList.add('tour-highlight');
     void target.offsetTop;
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    
-    // Wait for scroll to complete, then position tooltip
-    setTimeout(() => {
-      const rect = target.getBoundingClientRect();
 
-      // Create tooltip positioned below the target
-      const tooltip = document.createElement('div');
-      tooltip.className = 'fixed bg-white dark:bg-gray-900 rounded-xl p-5 shadow-2xl border-2 border-green-500 max-w-sm scale-in';
-      tooltip.style.pointerEvents = 'auto';
-      tooltip.style.zIndex = '9999';
-      
-      // Position: below target if space, otherwise above
-      const tooltipWidth = 320;
-      const tooltipHeight = 200;
-      let top = rect.bottom + 12;
-      let left = rect.left;
-      
-      // If not enough space below, put it above
-      if (top + tooltipHeight > window.innerHeight - 20) {
-        top = rect.top - tooltipHeight - 12;
-      }
-      // If still not enough space, put it at top of screen
-      if (top < 20) top = 20;
-      // Keep horizontally in view
-      if (left + tooltipWidth > window.innerWidth - 20) {
-        left = window.innerWidth - tooltipWidth - 20;
-      }
-      if (left < 20) left = 20;
-      
-      tooltip.style.top = top + 'px';
-      tooltip.style.left = left + 'px';
-      tooltip.style.maxWidth = 'calc(100vw - 40px)';
-      
-      tooltip.innerHTML = `
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <span class="w-7 h-7 rounded-full bg-green-600 text-white text-xs font-bold flex items-center justify-center">${tourStep + 1}</span>
-            <span class="text-xs text-gray-400">${tourStep + 1} of ${TOUR_STEPS.length}</span>
-          </div>
-          <button id="tour-skip-btn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded transition-smooth">${icon('close', 'sm')}</button>
-        </div>
-        <h4 class="font-bold text-base mb-2 text-gray-900 dark:text-white">${escapeText(step.title)}</h4>
-        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 leading-relaxed">${escapeText(step.text)}</p>
-        <div class="flex gap-2">
-          <button id="tour-next-btn" class="flex-1 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-smooth flex items-center justify-center gap-1">
-            ${tourStep < TOUR_STEPS.length - 1 ? 'Next ' + icon('arrowRight', 'sm') : 'Get Started ' + icon('check', 'sm')}
-          </button>
-          <button id="tour-skip-btn2" class="px-4 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-smooth">Skip</button>
-        </div>
-      `;
-      overlay.appendChild(tooltip);
-
-      const nextBtn = document.getElementById('tour-next-btn');
-      const skipBtns = [document.getElementById('tour-skip-btn'), document.getElementById('tour-skip-btn2')];
-      
-      if (nextBtn) nextBtn.onclick = () => {
-        target.classList.remove('tour-highlight');
-        tourStep++;
-        showTourStep();
-      };
-      
-      skipBtns.forEach(btn => {
-        if (btn) btn.onclick = () => {
-          target.classList.remove('tour-highlight');
-          overlay.style.display = 'none';
-          overlay.style.background = 'transparent';
-          overlay.innerHTML = '';
-          localStorage.setItem('pena_tour_done', '1');
-        };
-      });
-    }, 600);
+    let prev = target.getBoundingClientRect().top;
+    let stable = 0;
+    function waitForScroll() {
+      const cur = target.getBoundingClientRect().top;
+      if (Math.abs(cur - prev) < 1) { stable++; } else { stable = 0; }
+      prev = cur;
+      if (stable >= 3) { positionTooltip(target, step); return; }
+      requestAnimationFrame(waitForScroll);
+    }
+    requestAnimationFrame(waitForScroll);
   } else {
-    overlay.style.background = 'transparent';
     tourStep++;
     showTourStep();
   }

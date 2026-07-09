@@ -153,13 +153,9 @@ button, [role="button"], .tab-btn, .bottom-nav-item, a, select, input[type="file
   background: #111827;
 }
 
-/* Tour tooltip must be above everything */
-#tour-overlay > div:not(#tour-backdrop) {
+/* Tour tooltip (appended to body, above tour-highlight 9998) */
+#tour-tooltip {
   z-index: 9999 !important;
-}
-
-#tour-backdrop {
-  z-index: 9997 !important;
 }
 
 /* QR code */
