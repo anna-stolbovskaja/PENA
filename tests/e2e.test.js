@@ -18,8 +18,8 @@ import {
   sanitizeText,
   eventHash,
   verifyEventIntegrity,
-} from '../lib/ledger.js';
-import { QVAC, categorizeExpense, queryLedger } from '../lib/qvac.js';
+} from '../src/lib/ledger.js';
+import { QVAC, categorizeExpense, queryLedger } from '../src/lib/qvac.js';
 
 // ═══════════════════════════════════════════════════════════════
 // E2E: Full Treasury Lifecycle

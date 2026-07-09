@@ -31,6 +31,13 @@ const LANG = {
     sigVerified: 'Signature verified', sigInvalid: 'Signature unverified',
     roleFounder: 'Founder', roleApprover: 'Approver', roleMember: 'Member', roleViewer: 'Viewer',
     budgetLimitExceeded: 'Budget limit exceeded for this role',
+    pinCreate: 'Create a PIN to protect your treasury',
+    pinEnter: 'Enter your PIN to unlock',
+    pinCreateBtn: 'Create PIN & Start',
+    pinUnlockBtn: 'Unlock',
+    pinTooShort: 'PIN must be at least 4 digits',
+    pinMismatch: 'PINs do not match',
+    pinWrong: 'Wrong PIN. Try again.',
   },
   es: {
     balance: 'Saldo', members: 'Miembros', contribute: 'Contribuir', proposal: 'Propuesta',
@@ -61,6 +68,13 @@ const LANG = {
     sigVerified: 'Firma verificada', sigInvalid: 'Firma no verificada',
     roleFounder: 'Fundador', roleApprover: 'Aprobador', roleMember: 'Miembro', roleViewer: 'Observador',
     budgetLimitExceeded: 'Límite de presupuesto excedido para este rol',
+    pinCreate: 'Crea un PIN para proteger tu tesorería',
+    pinEnter: 'Ingresa tu PIN para desbloquear',
+    pinCreateBtn: 'Crear PIN e Iniciar',
+    pinUnlockBtn: 'Desbloquear',
+    pinTooShort: 'El PIN debe tener al menos 4 dígitos',
+    pinMismatch: 'Los PIN no coinciden',
+    pinWrong: 'PIN incorrecto. Inténtalo de nuevo.',
   },
 };
 

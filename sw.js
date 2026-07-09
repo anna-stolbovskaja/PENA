@@ -1,24 +1,24 @@
 // Service Worker — PEÑA offline cache + push notifications
 // Caches app shell for offline use, network-first for CDN resources
 
-const CACHE_NAME = 'pena-v2';
+const CACHE_NAME = 'pena-v3';
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/app.js',
-  '/styles.css',
-  '/lib/ledger.js',
-  '/lib/p2p.js',
-  '/lib/wdk.js',
-  '/lib/qvac.js',
-  '/lib/icons.js',
-  '/lib/ui.js',
-  '/lib/i18n.js',
-  '/lib/actions.js',
+  '/src/app.js',
+  '/src/styles.css',
+  '/src/lib/ledger.js',
+  '/src/lib/p2p.js',
+  '/src/lib/wdk.js',
+  '/src/lib/qvac.js',
+  '/src/lib/icons.js',
+  '/src/lib/ui.js',
+  '/src/lib/i18n.js',
+  '/src/lib/actions.js',
   '/manifest.json',
-  '/icon.svg',
-  '/pena.png',
-  '/favicon.png',
+  '/assets/icon.svg',
+  '/assets/pena.png',
+  '/assets/favicon.png',
 ];
 
 self.addEventListener('install', (event) => {

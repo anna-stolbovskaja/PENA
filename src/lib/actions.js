@@ -3,6 +3,7 @@
 
 import { EVENT_TYPES, createEvent, applyEvent, getCategorySummary, getMemberContributions, escapeHtml, sanitizeAmount } from './ledger.js';
 import { signMessage, signTransferAuthorization, checkThreshold, simulateTxHash, shortenHash, verifySignature } from './wdk.js';
+import { secureSet, isUnlocked } from './crypto.js';
 import { parseReceipt, queryLedger } from './qvac.js';
 import { showModal, closeModal, showToast } from './ui.js';
 import { t } from './i18n.js';
@@ -18,15 +19,15 @@ function emitEvent(state, event, render) {
 }
 
 const MAX_PERSISTED_EVENTS = 5000;
-function persistEvents(state) {
+async function persistEvents(state) {
   try {
     const toStore = state.events.length > MAX_PERSISTED_EVENTS
       ? state.events.slice(-MAX_PERSISTED_EVENTS)
       : state.events;
-    localStorage.setItem('pena_events', JSON.stringify(toStore));
+    await secureSet('pena_events', JSON.stringify(toStore));
   } catch {
     try {
-      localStorage.setItem('pena_events', JSON.stringify(state.events.slice(-1000)));
+      await secureSet('pena_events', JSON.stringify(state.events.slice(-1000)));
     } catch { /* give up silently */ }
   }
 }
@@ -130,7 +131,7 @@ function flagDispute(state, proposalId, reason, render) {
     reason: reason.trim().substring(0, 300),
     filedBy: state.currentUser, ts: Date.now(), status: 'open',
   });
-  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
+  secureSet('pena_disputes', JSON.stringify(state.disputes));
   showToast(t('disputeSubmit') + ' ✓', 'success');
   render();
 }
@@ -138,7 +139,7 @@ function flagDispute(state, proposalId, reason, render) {
 function resolveDispute(state, disputeId, render) {
   const d = state.disputes.find(d => d.id === disputeId);
   if (d) { d.status = 'resolved'; d.resolvedAt = Date.now(); }
-  localStorage.setItem('pena_disputes', JSON.stringify(state.disputes));
+  secureSet('pena_disputes', JSON.stringify(state.disputes));
   render();
 }
 
@@ -151,14 +152,14 @@ function addRecurring(state, amount, interval, render) {
     interval, nextDue: Date.now() + (interval === 'weekly' ? 7 * 86400000 : 30 * 86400000),
     active: true,
   });
-  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
+  secureSet('pena_recurring', JSON.stringify(state.recurring));
   showToast(t('recurringTitle') + ': ' + amount + ' USDt ' + interval, 'success');
   render();
 }
 
 function cancelRecurring(state, id, render) {
   state.recurring = state.recurring.filter(r => r.id !== id);
-  localStorage.setItem('pena_recurring', JSON.stringify(state.recurring));
+  secureSet('pena_recurring', JSON.stringify(state.recurring));
   render();
 }
 
@@ -214,7 +215,7 @@ function addNote(state, text, render) {
   if (!text || !text.trim()) return;
   if (state.notes.length >= 500) { showToast('Notes limit reached (500)', 'error'); return; }
   state.notes.push({ id: Date.now(), text: text.trim().substring(0, 500), ts: Date.now(), author: state.currentUser });
-  localStorage.setItem('pena_notes', JSON.stringify(state.notes));
+  secureSet('pena_notes', JSON.stringify(state.notes));
   state.noteInput = '';
   showToast('Note added', 'success');
   render();
@@ -222,7 +223,7 @@ function addNote(state, text, render) {
 
 function deleteNote(state, id, render) {
   state.notes = state.notes.filter(n => n.id !== id);
-  localStorage.setItem('pena_notes', JSON.stringify(state.notes));
+  secureSet('pena_notes', JSON.stringify(state.notes));
   render();
 }
 

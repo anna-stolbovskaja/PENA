@@ -9,6 +9,7 @@ import { parseReceipt, queryLedger, initOCR, categorizeExpense, QVAC } from './l
 import { icon, icons } from './lib/icons.js';
 import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText, htmlCell } from './lib/ui.js';
 import { t, setLang, getLang } from './lib/i18n.js';
+import { initCrypto, isUnlocked, hasPin, secureGet, secureSet, secureRemove } from './lib/crypto.js';
 import {
   emitEvent, persistEvents,
   doContribute, doCreateProposal, doApprove, doExecute,
@@ -71,25 +72,25 @@ const state = {
 // INIT
 // ═══════════════════════════════════════════════════════════════
 
-function init() {
+async function init() {
   const savedMode = localStorage.getItem('pena_mode');
   if (savedMode === 'real') state.mode = 'real';
 
-  try { state.notes = JSON.parse(localStorage.getItem('pena_notes') || '[]'); } catch { state.notes = []; }
-  try { state.tifoBudgets = JSON.parse(localStorage.getItem('pena_tifo_budgets') || '[]'); } catch { state.tifoBudgets = []; }
-  try { state.disputes = JSON.parse(localStorage.getItem('pena_disputes') || '[]'); } catch { state.disputes = []; }
-  try { state.recurring = JSON.parse(localStorage.getItem('pena_recurring') || '[]'); } catch { state.recurring = []; }
+  try { state.notes = JSON.parse(await secureGet('pena_notes') || '[]'); } catch { state.notes = []; }
+  try { state.tifoBudgets = JSON.parse(await secureGet('pena_tifo_budgets') || '[]'); } catch { state.tifoBudgets = []; }
+  try { state.disputes = JSON.parse(await secureGet('pena_disputes') || '[]'); } catch { state.disputes = []; }
+  try { state.recurring = JSON.parse(await secureGet('pena_recurring') || '[]'); } catch { state.recurring = []; }
 
   state.lang = localStorage.getItem('pena_lang') || (navigator.language?.startsWith('es') ? 'es' : 'en');
   setLang(state.lang);
   state.onboardingDone = localStorage.getItem('pena_onboarding') === 'done';
 
-  const savedWallet = localStorage.getItem('pena_wallet');
+  const savedWallet = await secureGet('pena_wallet');
   if (savedWallet) {
     try { state.wallet = JSON.parse(savedWallet); } catch { state.wallet = generateWallet(); }
   } else {
     state.wallet = generateWallet();
-    localStorage.setItem('pena_wallet', JSON.stringify(state.wallet));
+    await secureSet('pena_wallet', JSON.stringify(state.wallet));
   }
 
   state.smartAccount = createSmartAccount(state.threshold, [{ address: state.wallet.address }]);
@@ -121,7 +122,7 @@ function init() {
     state.p2p.onPeerChange((peers) => { state.peers = peers; render(); });
   } catch (err) { console.error('P2P init error:', err.message); }
 
-  const savedEvents = localStorage.getItem('pena_events');
+  const savedEvents = await secureGet('pena_events');
   if (savedEvents) {
     try {
       const events = JSON.parse(savedEvents);
@@ -184,10 +185,10 @@ function init() {
   if (shouldShowTour()) setTimeout(startTour, 1000);
 }
 
-function switchMode(mode) {
+async function switchMode(mode) {
   state.mode = mode;
   localStorage.setItem('pena_mode', mode);
-  localStorage.removeItem('pena_events');
+  secureRemove('pena_events');
   if (mode === 'real') {
     state.members = []; state.contributions = []; state.proposals = [];
     state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
@@ -245,7 +246,7 @@ function seedData() {
     { id: 'tb1', name: 'Flags for Derby', goal: 600, spent: 320, deadline: Date.now() + 86400000 * 12, category: 'Tifo' },
     { id: 'tb2', name: 'Away Match Bus', goal: 900, spent: 450, deadline: Date.now() + 86400000 * 5, category: 'Transport' },
   ];
-  localStorage.setItem('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
+  secureSet('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
 }
 
 function seedMatches() {
@@ -311,7 +312,7 @@ function renderHeader() {
     <div data-tour="balance" class="bg-white dark:bg-gray-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
       <div class="flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">
-          <img src="/pena.png" alt="PEÑA" class="w-10 h-10 rounded-xl flex-shrink-0">
+          <img src="/assets/pena.png" alt="PEÑA" class="w-10 h-10 rounded-xl flex-shrink-0">
           <div class="min-w-0">
             <h1 class="text-lg sm:text-xl font-bold truncate">PEÑA</h1>
             <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${escapeHtml(state.groupName)}</p>
@@ -1235,7 +1236,7 @@ function bindEvents() {
         const cat = document.getElementById('budget-cat')?.value || 'Other';
         if (!name || goal <= 0) { showToast('Fill name and goal', 'error'); return; }
         state.tifoBudgets.push({ id: 'tb' + Date.now(), name, goal, spent: 0, deadline: deadline ? new Date(deadline).getTime() : Date.now() + 86400000 * 30, category: cat });
-        localStorage.setItem('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
+        secureSet('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
         closeModal(); render(); showToast('Budget created', 'success');
       });
     }, 100);
@@ -1341,8 +1342,67 @@ function bindEvents() {
 // START
 // ═══════════════════════════════════════════════════════════════
 
+async function showPinScreen() {
+  const app = document.getElementById('app');
+  const skeleton = document.getElementById('skeleton');
+  if (skeleton) skeleton.style.display = 'none';
+  if (app) app.style.display = 'block';
+
+  const isNew = !hasPin();
+  app.innerHTML = `
+    <div class="min-h-screen flex items-center justify-center px-4">
+      <div class="w-full max-w-sm text-center">
+        <img src="/assets/pena.png" alt="PEÑA" class="w-20 h-20 rounded-2xl mx-auto mb-4">
+        <h1 class="text-2xl font-bold mb-1">PEÑA</h1>
+        <p class="text-gray-500 dark:text-gray-400 text-sm mb-6">${isNew ? t('pinCreate') : t('pinEnter')}</p>
+        <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="${isNew ? '4-8 digit PIN' : 'PIN'}"
+          class="w-full text-center text-2xl tracking-widest px-4 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 focus:border-green-500 focus:outline-none mb-4">
+        ${isNew ? `<input id="pin-confirm" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Confirm PIN"
+          class="w-full text-center text-2xl tracking-widest px-4 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 focus:border-green-500 focus:outline-none mb-4">` : ''}
+        <button id="pin-submit" class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm transition-smooth">
+          ${isNew ? t('pinCreateBtn') : t('pinUnlockBtn')}
+        </button>
+        <p id="pin-error" class="text-red-500 text-xs mt-3 hidden"></p>
+        <p class="text-gray-400 text-xs mt-4">${icon('shield', 'sm')} AES-256-GCM</p>
+      </div>
+    </div>
+  `;
+
+  const pinInput = document.getElementById('pin-input');
+  const pinConfirm = document.getElementById('pin-confirm');
+  const pinSubmit = document.getElementById('pin-submit');
+  const pinError = document.getElementById('pin-error');
+
+  pinInput.focus();
+
+  const submit = async () => {
+    const pin = pinInput.value.trim();
+    if (pin.length < 4) { pinError.textContent = t('pinTooShort'); pinError.classList.remove('hidden'); return; }
+    if (isNew && pinConfirm) {
+      if (pin !== pinConfirm.value.trim()) { pinError.textContent = t('pinMismatch'); pinError.classList.remove('hidden'); return; }
+    }
+    try {
+      await initCrypto(pin);
+      await init();
+    } catch (e) {
+      if (e.message === 'wrong_pin') {
+        pinError.textContent = t('pinWrong');
+        pinError.classList.remove('hidden');
+        pinInput.value = '';
+        pinInput.focus();
+      } else {
+        throw e;
+      }
+    }
+  };
+
+  pinSubmit.addEventListener('click', submit);
+  const lastInput = pinConfirm || pinInput;
+  lastInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+}
+
 try {
-  init();
+  showPinScreen();
 } catch (err) {
   console.error('PEÑA init error:', err);
   const app = document.getElementById('app');

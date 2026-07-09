@@ -15,7 +15,7 @@ import {
   sanitizeText,
   eventHash,
   verifyEventIntegrity,
-} from '../lib/ledger.js';
+} from '../src/lib/ledger.js';
 
 test('initialState returns empty collections and zero balance', () => {
   const state = initialState();

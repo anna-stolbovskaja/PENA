@@ -84,6 +84,7 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 | i18n | Built-in EN/ES (lib/i18n.js) | Localized UI labels and messages | Production-ready |
 | Actions | lib/actions.js | Modular action handlers | Production-ready |
 | QVAC SDK | lib/qvac.js | Unified OCR + NL + categorization API | Production-ready |
+| Encryption | Web Crypto API (AES-256-GCM) | PIN-protected encrypted localStorage | Production-ready |
 | Icons | Custom SVG library | No icon font dependencies | Production-ready |
 | Charts | Custom SVG charts | No chart library, animated visualizations | Production-ready |
 | PWA | manifest.json | Installable, offline-capable, app-like experience | Production-ready |
@@ -134,32 +135,36 @@ Visit the deployed version: **https://pena-repo.vercel.app**
 
 ```
 PENA/
-├── index.html          — Entry point, meta tags, PWA manifest link, structured data
-├── styles.css          — Responsive styles, animations, bottom nav, modals
-├── app.js              — Entry point, state, init, render, event binding (thin orchestrator)
+├── index.html          — Single entry point, meta tags, PWA manifest, structured data
 ├── manifest.json       — PWA manifest
-├── icon.svg            — Vector icon
-├── icon-512.png        — App icon (512x512, transparent)
-├── icon-192.png        — App icon (192x192)
-├── icon-180.png        — Apple touch icon
-├── favicon.png         — Favicon (32x32, from pena.png)
-├── pena.png            — Project logo (1024x1024)
-├── lib/
-│   ├── ledger.js       — Append-only event log, deterministic state rebuild, integrity hashes
-│   ├── actions.js      — Action handlers: contribute, propose, approve, execute, disputes, recurring
-│   ├── i18n.js         — Internationalization: EN/ES translations, language toggle
-│   ├── wdk.js          — Wallet operations: ethers.js, EIP-3009, ERC-4337, signature verification
-│   ├── qvac.js         — QVAC SDK: receipt OCR (Tesseract.js), NL query, expense categorization
-│   ├── p2p.js          — P2P sync: BroadcastChannel, WebRTC DataChannel, peer discovery
-│   ├── ui.js           — UI components: modals, toasts, tour, charts, QR, sortable tables
-│   └── icons.js        — SVG icon library (50+ icons, zero dependencies)
+├── sw.js               — Service Worker (offline cache, push notifications)
+├── vercel.json         — Deployment config, security headers
+├── assets/
+│   ├── pena.png        — Project logo (1024x1024)
+│   ├── favicon.png     — Favicon (32x32, from pena.png)
+│   ├── icon-512.png    — App icon (512x512, transparent)
+│   ├── icon-192.png    — App icon (192x192)
+│   ├── icon-180.png    — Apple touch icon
+│   └── icon.svg        — Vector icon
+├── src/
+│   ├── app.js          — Entry point, state, init, render, event binding
+│   ├── styles.css      — Responsive styles, animations, bottom nav, modals
+│   └── lib/
+│       ├── ledger.js   — Append-only event log, deterministic state rebuild, integrity hashes
+│       ├── actions.js  — Action handlers: contribute, propose, approve, execute, disputes, recurring
+│       ├── crypto.js   — AES-256-GCM encryption for localStorage via Web Crypto API
+│       ├── i18n.js     — Internationalization: EN/ES translations, language toggle
+│       ├── wdk.js      — Wallet operations: ethers.js, EIP-3009, ERC-4337, signature verification
+│       ├── qvac.js     — QVAC SDK: receipt OCR (Tesseract.js), NL query, expense categorization
+│       ├── p2p.js      — P2P sync: BroadcastChannel, WebRTC DataChannel, peer discovery
+│       ├── ui.js       — UI components: modals, toasts, tour, charts, QR, sortable tables
+│       └── icons.js    — SVG icon library (50+ icons, zero dependencies)
 ├── tests/
 │   ├── ledger.test.js  — Ledger state machine tests (38 tests)
 │   ├── wdk.test.js     — Wallet/signing tests (8 tests)
 │   ├── qvac.test.js    — OCR + NL query tests (14 tests)
 │   ├── signing.test.js — EIP-191 signature tests (9 tests)
 │   └── e2e.test.js     — End-to-end integration tests (19 tests)
-├── vercel.json         — Deployment config, security headers
 ├── LICENSE             — MIT
 ├── SECURITY.md         — Security policy
 └── CONTRIBUTING.md     — Contribution guide
@@ -211,7 +216,8 @@ User Action → Sign with Wallet (WDK) → Create Event → Apply to Ledger Stat
 - Event integrity: FNV-1a hash on every event; tampered events rejected on apply
 - Replay protection: `Set` of applied event IDs prevents duplicate application via P2P
 - Balance guard: execution blocked when treasury balance < proposal amount
-- Wallet private keys stored in localStorage, never transmitted; mnemonic discarded after key generation
+- **Encrypted storage**: all sensitive data (wallet keys, ledger, budgets, notes) encrypted with AES-256-GCM via Web Crypto API; key derived from user PIN using PBKDF2 (100k iterations)
+- Wallet private keys stored locally, never transmitted; mnemonic discarded after key generation
 - All async operations wrapped in try/catch — app never crashes silently
 - Security headers: CSP (self + jsdelivr + esm.sh), X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
 - Receipt upload limited to 10 MB; event count capped at 5000 with graceful fallback
