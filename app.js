@@ -1073,7 +1073,7 @@ function bindEvents() {
   const splitCalc = document.getElementById('btn-split-calc');
   if (splitCalc) splitCalc.addEventListener('click', () => {
     const amount = parseFloat(document.getElementById('split-amount')?.value || '0');
-    const members = parseInt(document.getElementById('split-members', 10)?.value || '0', 10);
+    const members = parseInt(document.getElementById('split-members')?.value || '0', 10);
     const result = document.getElementById('split-result');
     if (!result || amount <= 0 || members <= 0) { if (result) result.innerHTML = '<p class="text-sm text-red-500">Enter valid values</p>'; return; }
     const perPerson = (amount / members).toFixed(2);
@@ -1109,7 +1109,9 @@ try {
   if (skeleton) skeleton.style.display = 'none';
   if (app) {
     app.style.display = 'block';
-    app.innerHTML = '<div style="padding:2rem;text-align:center;font-family:system-ui,sans-serif"><h2 style="font-size:1.5rem;font-weight:bold">PEÑA</h2><p style="color:#666;max-width:400px;margin:1rem auto">Failed to initialize: ' + escapeText(err.message || 'unknown error') + '</p><button onclick="location.reload()" style="padding:0.5rem 1rem;background:#00a86b;color:white;border:none;border-radius:0.5rem;cursor:pointer">Reload</button></div>';
+    app.innerHTML = '<div style="padding:2rem;text-align:center;font-family:system-ui,sans-serif"><h2 style="font-size:1.5rem;font-weight:bold">PEÑA</h2><p style="color:#666;max-width:400px;margin:1rem auto">Failed to initialize: ' + escapeText(err.message || 'unknown error') + '</p><button id="pena-error-reload" style="padding:0.5rem 1rem;background:#00a86b;color:white;border:none;border-radius:0.5rem;cursor:pointer">Reload</button></div>';
+    const reloadBtn = document.getElementById('pena-error-reload');
+    if (reloadBtn) reloadBtn.addEventListener('click', () => location.reload());
   }
 }
 
