@@ -24,6 +24,16 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 
 ---
 
+## Screenshots
+
+| Audit Feed | Balance & On-Chain | Dark Mode |
+|:---:|:---:|:---:|
+| ![Feed](docs/screenshots/feed.png) | ![Balance](docs/screenshots/balance.png) | ![Dark](docs/screenshots/dark-mode.png) |
+
+| Proposals | NL Query | Mobile |
+|:---:|:---:|:---:|
+| ![Proposals](docs/screenshots/proposals.png) | ![Query](docs/screenshots/query.png) | ![Mobile](docs/screenshots/mobile.png) |
+
 ## Features
 
 ### Collective Wallet (WDK)
@@ -154,7 +164,7 @@ PENA/
 │       ├── actions.js  — Action handlers: contribute, propose, approve, execute, disputes, recurring
 │       ├── crypto.js   — AES-256-GCM encryption for localStorage via Web Crypto API
 │       ├── i18n.js     — Internationalization: EN/ES translations, language toggle
-│       ├── wdk.js      — Wallet operations: ethers.js, EIP-3009, ERC-4337, signature verification
+│       ├── wdk.js      — Wallet ops: ethers.js, EIP-3009, ERC-4337, on-chain Sepolia transfers
 │       ├── qvac.js     — QVAC SDK: receipt OCR (Tesseract.js), NL query, expense categorization
 │       ├── p2p.js      — P2P sync: BroadcastChannel, WebRTC DataChannel, peer discovery
 │       ├── ui.js       — UI components: modals, toasts, tour, charts, QR, sortable tables
@@ -165,6 +175,8 @@ PENA/
 │   ├── qvac.test.js    — OCR + NL query tests (14 tests)
 │   ├── signing.test.js — EIP-191 signature tests (9 tests)
 │   └── e2e.test.js     — End-to-end integration tests (19 tests)
+├── docs/
+│   └── screenshots/    — App screenshots for README (6 images)
 ├── LICENSE             — MIT
 ├── SECURITY.md         — Security policy
 └── CONTRIBUTING.md     — Contribution guide
@@ -217,7 +229,7 @@ User Action → Sign with Wallet (WDK) → Create Event → Apply to Ledger Stat
 - Replay protection: `Set` of applied event IDs prevents duplicate application via P2P
 - Balance guard: execution blocked when treasury balance < proposal amount
 - **Encrypted storage**: all sensitive data (wallet keys, ledger, budgets, notes) encrypted with AES-256-GCM via Web Crypto API; key derived from user PIN using PBKDF2 (100k iterations)
-- **On-chain transactions**: real ETH transfers on Sepolia testnet via ethers.js `JsonRpcProvider`; live balance display with Etherscan explorer links
+- **On-chain transactions**: real ETH transfers on Sepolia testnet via ethers.js `JsonRpcProvider`; live balance display, Send ETH form, Etherscan explorer links
 - Wallet private keys stored locally, never transmitted; mnemonic discarded after key generation
 - All async operations wrapped in try/catch — app never crashes silently
 - Security headers: CSP (self + jsdelivr + esm.sh), X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
