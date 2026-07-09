@@ -85,6 +85,7 @@ function init() {
       if (msg.type === 'event') {
         state.events.push(msg.event);
         applyEvent(state, msg.event);
+        persistEvents();
         render();
         showToast('Synced via P2P', 'p2p');
       } else if (msg.type === 'state:sync') {
@@ -97,8 +98,21 @@ function init() {
     state.p2p.onPeerChange((peers) => { state.peers = peers; render(); });
   } catch (err) { console.error('P2P init error:', err.message); }
 
-  // Seed data
-  if (state.mode === 'demo') { seedData(); seedMatches(); }
+  // Load persisted ledger events
+  const savedEvents = localStorage.getItem('pena_events');
+  if (savedEvents) {
+    try {
+      const events = JSON.parse(savedEvents);
+      if (Array.isArray(events) && events.length > 0) {
+        const rebuilt = rebuildState(events);
+        Object.assign(state, rebuilt);
+        state.events = events;
+      }
+    } catch { /* ignore corrupt data */ }
+  }
+
+  // Seed data only if no persisted events
+  if (state.mode === 'demo' && state.members.length === 0) { seedData(); seedMatches(); }
   render();
 
   // Hide skeleton, show app
@@ -167,7 +181,12 @@ function emitEvent(event) {
   state.events.push(event);
   applyEvent(state, event);
   if (state.p2p) state.p2p.broadcast({ type: 'event:broadcast', from: state.p2p.peerId, event });
+  persistEvents();
   render();
+}
+
+function persistEvents() {
+  try { localStorage.setItem('pena_events', JSON.stringify(state.events)); } catch { /* quota exceeded */ }
 }
 
 async function doContribute(amount) {
@@ -247,14 +266,19 @@ function deleteNote(id) {
 function switchMode(mode) {
   state.mode = mode;
   localStorage.setItem('pena_mode', mode);
+  localStorage.removeItem('pena_events');
   if (mode === 'real') {
     state.members = []; state.contributions = []; state.proposals = [];
     state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
     state.currentUser = null;
-    // Create self as first member
     const self = { id: 'me', name: 'You', role: 'founder', walletAddr: state.wallet.address };
     emitEvent(createEvent(EVENT_TYPES.MEMBER_JOIN, self, state.wallet));
     state.currentUser = 'me';
+  } else {
+    state.members = []; state.contributions = []; state.proposals = [];
+    state.executions = []; state.receipts = []; state.balance = 0; state.events = [];
+    state.currentUser = null;
+    seedData(); seedMatches();
   }
   render();
   showToast(mode === 'demo' ? 'Demo mode loaded' : 'Real mode activated', 'info');
@@ -1027,13 +1051,13 @@ function bindEvents() {
 
   // Contribute
   const bc = document.getElementById('btn-contribute'); if (bc) bc.addEventListener('click', () => { state.showContribute = !state.showContribute; state.showProposal = false; render(); });
-  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(parseInt(document.getElementById('contrib-amount', 10).value, 10)));
+  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(parseInt(document.getElementById('contrib-amount').value, 10)));
   const bcCancel = document.getElementById('btn-contrib-cancel'); if (bcCancel) bcCancel.addEventListener('click', () => { state.showContribute = false; render(); });
   document.querySelectorAll('[data-quick-amount]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('contrib-amount'); if (inp) { inp.value = btn.dataset.quickAmount; } }));
 
   // Propose
   const bp = document.getElementById('btn-propose'); if (bp) bp.addEventListener('click', () => { state.showProposal = !state.showProposal; state.showContribute = false; render(); });
-  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount', 10).value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
+  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount').value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
   const bpCancel = document.getElementById('btn-prop-cancel'); if (bpCancel) bpCancel.addEventListener('click', () => { state.showProposal = false; state.proposalReceipt = null; render(); });
   document.querySelectorAll('[data-quick-purpose]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('prop-purpose'); if (inp) inp.value = btn.dataset.quickPurpose; }));
 
