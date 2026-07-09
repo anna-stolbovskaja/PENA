@@ -205,8 +205,9 @@ MIT — see [LICENSE](LICENSE)
 What to look for when evaluating PE\u00d1A:
 
 1. **On-chain tx hashes** — EIP-3009 `transferWithAuthorization` signatures are real, verifiable on-chain
-2. **P2P sync** — open two browser tabs, create a contribution in one, watch it appear in the other via BroadcastChannel
-3. **Receipt OCR** — upload a receipt image, watch Tesseract.js extract payee/amount/category locally
-4. **NL queries** — type "saldo", "transporte", "quien contribuy\u00f3 m\u00e1s" and get answers from the local ledger
-5. **M-of-N approval** — create a proposal, approve it from multiple members, watch the threshold gate execution
-6. **Reproducibility** — `git clone && npx serve .` — zero build step, zero dependencies to install
+2. **Real cryptography, tested** — `npm test` runs 51 tests including 7 that produce genuine EIP-191 and EIP-3009 signatures and verify they recover to the signer address (`tests/signing.test.js`). The wallet layer is real ethers.js cryptography, not a mock.
+3. **P2P sync** — open two browser tabs, create a contribution in one, watch it appear in the other via BroadcastChannel
+4. **Receipt OCR** — upload a receipt image, watch Tesseract.js extract payee/amount/category locally
+5. **NL queries** — type "saldo", "transporte", "quien contribuy\u00f3 m\u00e1s" and get answers from the local ledger
+6. **M-of-N approval** — create a proposal, approve it from multiple members, watch the threshold gate execution
+7. **Reproducibility** — `git clone && npm install && npm test` — 51 passing tests; `npx serve .` to run the app
