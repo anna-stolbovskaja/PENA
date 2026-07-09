@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for secrets
+        run: |
+          if grep -r "api_key\|secret_key\|private_key.*=.*['\"]" --include="*.js" --include="*.json" .; then
+            echo "Found potential secrets"
+            exit 1
+          fi
+      - name: Check for TODO/FIXME
+        run: |
+          if grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.js" . | grep -v node_modules; then
+            echo "Found TODO/FIXME markers"
+            exit 1
+          fi
+      - name: Check for eval/document.write
+        run: |
+          if grep -rn "eval(\|document\.write" --include="*.js" . | grep -v node_modules | grep -v "no eval" | grep -v "no document.write"; then
+            echo "Found eval or document.write"
+            exit 1
+          fi
+      - name: Check for Russian text
+        run: |
+          if grep -rP "[\x{0400}-\x{04FF}]" --include="*.js" --include="*.html" --include="*.css" --include="*.json" --include="*.md" . | grep -v node_modules; then
+            echo "Found Cyrillic text"
+            exit 1
+          fi

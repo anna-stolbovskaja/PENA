@@ -1027,13 +1027,13 @@ function bindEvents() {
 
   // Contribute
   const bc = document.getElementById('btn-contribute'); if (bc) bc.addEventListener('click', () => { state.showContribute = !state.showContribute; state.showProposal = false; render(); });
-  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(parseInt(document.getElementById('contrib-amount').value, 10)));
+  const bcOk = document.getElementById('btn-contrib-ok'); if (bcOk) bcOk.addEventListener('click', () => doContribute(parseInt(document.getElementById('contrib-amount', 10).value, 10)));
   const bcCancel = document.getElementById('btn-contrib-cancel'); if (bcCancel) bcCancel.addEventListener('click', () => { state.showContribute = false; render(); });
   document.querySelectorAll('[data-quick-amount]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('contrib-amount'); if (inp) { inp.value = btn.dataset.quickAmount; } }));
 
   // Propose
   const bp = document.getElementById('btn-propose'); if (bp) bp.addEventListener('click', () => { state.showProposal = !state.showProposal; state.showContribute = false; render(); });
-  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount').value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
+  const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount', 10).value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
   const bpCancel = document.getElementById('btn-prop-cancel'); if (bpCancel) bpCancel.addEventListener('click', () => { state.showProposal = false; state.proposalReceipt = null; render(); });
   document.querySelectorAll('[data-quick-purpose]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('prop-purpose'); if (inp) inp.value = btn.dataset.quickPurpose; }));
 
@@ -1073,7 +1073,7 @@ function bindEvents() {
   const splitCalc = document.getElementById('btn-split-calc');
   if (splitCalc) splitCalc.addEventListener('click', () => {
     const amount = parseFloat(document.getElementById('split-amount')?.value || '0');
-    const members = parseInt(document.getElementById('split-members')?.value || '0', 10);
+    const members = parseInt(document.getElementById('split-members', 10)?.value || '0', 10);
     const result = document.getElementById('split-result');
     if (!result || amount <= 0 || members <= 0) { if (result) result.innerHTML = '<p class="text-sm text-red-500">Enter valid values</p>'; return; }
     const perPerson = (amount / members).toFixed(2);

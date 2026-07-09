@@ -1,0 +1,14 @@
+{
+  "name": "pena",
+  "version": "1.0.0",
+  "description": "Transparent self-custody treasury for football fan groups",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "test:ledger": "node --test tests/ledger.test.js",
+    "test:wdk": "node --test tests/wdk.test.js",
+    "test:qvac": "node --test tests/qvac.test.js",
+    "serve": "npx serve ."
+  }
+}
