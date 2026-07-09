@@ -553,4 +553,20 @@ function bindEvents() {
 // START
 // ═══════════════════════════════════════════════════════════════
 
-init();
+try {
+  init();
+} catch (err) {
+  console.error('PEÑA init error:', err);
+  const app = document.getElementById('app');
+  if (app) {
+    app.innerHTML = '<div style="padding:2rem;text-align:center;font-family:sans-serif"><h2>PEÑA</h2><p style="color:#666">Error al iniciar: ' + (err.message || 'desconocido') + '</p><p style="color:#999;font-size:0.8rem">Recarga la página o abre la consola para más detalles.</p></div>';
+  }
+}
+
+window.addEventListener('error', (e) => {
+  console.error('PEÑA runtime error:', e.error || e.message);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('PEÑA unhandled promise:', e.reason);
+});
