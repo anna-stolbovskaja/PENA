@@ -1,12 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#00a86b"/>
-      <stop offset="1" stop-color="#007a4f"/>
+      <stop offset="0" stop-color="#2EB87A"/>
+      <stop offset="1" stop-color="#1D8B5C"/>
     </linearGradient>
   </defs>
-  <path d="M256 48 L432 112 V256 C432 368 352 440 256 472 C160 440 80 368 80 256 V112 Z" fill="url(#g)"/>
-  <text x="256" y="240" font-family="Arial,sans-serif" font-size="180" font-weight="bold" fill="white" text-anchor="middle">P</text>
-  <circle cx="256" cy="330" r="28" fill="none" stroke="white" stroke-width="8"/>
-  <circle cx="256" cy="330" r="8" fill="white"/>
+  <!-- Shield -->
+  <path d="M256 36 C256 36 440 100 440 100 L440 260 C440 376 356 448 256 480 C156 448 72 376 72 260 L72 100 Z" fill="url(#g)"/>
+  <!-- P with peso stroke (₱) -->
+  <path d="M188 148 L188 360 L220 360 L220 280 L272 280 C316 280 348 252 348 214 C348 176 316 148 272 148 Z M220 176 L268 176 C300 176 316 192 316 214 C316 236 300 252 268 252 L220 252 Z" fill="white"/>
+  <!-- Horizontal peso bar -->
+  <rect x="176" y="222" width="160" height="10" rx="2" fill="white"/>
+  <!-- Coin (two ellipses) -->
+  <ellipse cx="280" cy="370" rx="40" ry="16" fill="none" stroke="white" stroke-width="7"/>
+  <ellipse cx="280" cy="354" rx="40" ry="16" fill="none" stroke="white" stroke-width="7"/>
 </svg>
