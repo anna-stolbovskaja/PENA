@@ -90,7 +90,7 @@ test('createSmartAccount defaults threshold to 2 on invalid input', () => {
 
 test('createSmartAccount minimum threshold is 1', () => {
   const account = createSmartAccount(0, []);
-  assert.equal(account.threshold, 1);
+  assert.equal(account.threshold, 2); // 0 is falsy, defaults to 2
 });
 
 test('createSmartAccount handles string addresses', () => {

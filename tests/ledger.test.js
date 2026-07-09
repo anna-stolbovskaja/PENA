@@ -167,7 +167,7 @@ test('getMemberContributions groups by member name', () => {
 test('escapeHtml escapes all dangerous characters', () => {
   assert.equal(escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
   assert.equal(escapeHtml('"quote"'), '&quot;quote&quot;');
-  assert.equal(escapeHtml("'apostrophe''), '&#39;apostrophe&#39;');
+  assert.equal(escapeHtml("'apostrophe'"), '&#39;apostrophe&#39;');
   assert.equal(escapeHtml('&amp'), '&amp;amp');
   assert.equal(escapeHtml(null), '');
   assert.equal(escapeHtml(undefined), '');
