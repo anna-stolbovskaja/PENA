@@ -1,9 +1,38 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PEÑA — Transparent Treasury</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#00a86b">
+  <meta name="description" content="PEÑA — Transparent self-custody treasury for football fan groups. Collective wallet, P2P ledger, receipt OCR, natural language queries.">
+  <meta name="keywords" content="treasury, football, fan group, self-custody, USDt, P2P, wallet, transparent, collective">
+  <meta name="author" content="PEÑA">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PEÑA — Transparent Self-Custody Treasury">
+  <meta property="og:description" content="Collective wallet with transparent P2P ledger for football fan groups. No treasurer fraud, no opaque cash.">
+  <meta property="og:image" content="/icon-512.png">
+  <meta property="og:url" content="https://pena-repo.vercel.app">
+  <meta property="og:site_name" content="PEÑA">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PEÑA — Transparent Self-Custody Treasury">
+  <meta name="twitter:description" content="Collective wallet with transparent P2P ledger for football fan groups.">
+  <meta name="twitter:image" content="/icon-512.png">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+
+  <!-- Tailwind CSS -->
   <script
     src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0/dist/index.global.js"
     integrity="sha384-nWTzRTCY/9V4Bo352ehygr1c4cnst4XN6lMR3fipakEQrhVpc0hEM5Dii3Amz0sT"
@@ -18,10 +47,64 @@
       window.matchMedia('(prefers-color-scheme: dark)').matches
     );
   </script>
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "PEÑA",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Web",
+    "description": "Transparent self-custody treasury for football fan groups. Collective wallet with P2P ledger.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "aggregateRating": { "@type": "AggregateRating", "ratingValue": "5", "ratingCount": "1" }
+  }
+  </script>
+
   <link rel="stylesheet" href="styles.css">
+  <title>PEÑA — Transparent Treasury</title>
 </head>
 <body class="min-h-dvh text-sm antialiased bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-  <div id="app"></div>
+  <!-- No-JS fallback -->
+  <noscript>
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;font-family:system-ui,sans-serif">
+      <div>
+        <h1 style="font-size:1.5rem;font-weight:bold;margin-bottom:1rem">PEÑA</h1>
+        <p style="color:#666;max-width:400px">JavaScript is required to run PEÑA. Please enable JavaScript in your browser settings to continue.</p>
+      </div>
+    </div>
+  </noscript>
+
+  <!-- App container -->
+  <div id="app" style="display:none">
+    <!-- Skeleton preloader -->
+    <div id="skeleton" class="max-w-5xl mx-auto px-4 py-6 animate-pulse">
+      <div class="bg-gray-200 dark:bg-gray-800 rounded-2xl h-28 mb-4"></div>
+      <div class="flex gap-1 mb-4">
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-10 w-24"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-10 w-24"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-10 w-24"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-10 w-24"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-10 w-24"></div>
+      </div>
+      <div class="space-y-2">
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-16"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-16"></div>
+        <div class="bg-gray-200 dark:bg-gray-800 rounded h-16"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <!-- Tour overlay -->
+  <div id="tour-overlay" class="fixed inset-0 z-40 pointer-events-none" style="display:none"></div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>

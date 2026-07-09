@@ -1,0 +1,16 @@
+{
+  "name": "PEÑA — Transparent Treasury",
+  "short_name": "PEÑA",
+  "description": "Transparent self-custody treasury for football fan groups. Collective wallet, P2P ledger, receipt OCR.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1b2a",
+  "theme_color": "#00a86b",
+  "categories": ["finance", "utilities", "social"],
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
