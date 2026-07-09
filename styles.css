@@ -167,3 +167,11 @@ button, [role="button"], .tab-btn, .bottom-nav-item, a, select, input[type="file
 .icon-sm { width: 16px; height: 16px; }
 .icon-md { width: 20px; height: 20px; }
 .icon-lg { width: 24px; height: 24px; }
+
+/* Dark-mode date/select input icons */
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+.dark select {
+  color-scheme: dark;
+}

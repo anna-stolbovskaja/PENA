@@ -58,14 +58,17 @@ PEÑA replaces that with a **collective self-custody wallet** where every transa
 - **Onboarding Flow** — guided welcome modal for new users in Live mode
 - **Budget Tracker** — set spending goals with progress bars, deadlines, and urgency indicators
 - **Multi-Category Proposals** — tag proposals with multiple categories (Transport + Tickets + Food)
-- **Audit Feed** — transparent, immutable log of all treasury activity
+- **Audit Feed** — transparent, immutable, filterable log of all treasury activity with clickable detail modals
+- **Feed Filters** — filter audit feed by All / Contributions / Proposals / Executions
+- **Hash Routing** — deep-linkable tabs via URL hash (`#feed`, `#balance`, `#proposals`, etc.)
+- **Dark/Light Theme** — toggle with localStorage persistence, auto-applied on load
 - **Proposals** — M-of-N spending approvals with receipt attachment
 - **Balance Dashboard** — visual charts: category breakdown, spending trends, member contributions
 - **Reports** — sortable tables, exportable reports, detailed statistics
 - **Notes** — locally stored treasury notes
-- **PWA** — installable on mobile, works offline, responsive design
+- **PWA** — installable on mobile, works offline, responsive design, cache auto-update
 - **Demo & Live modes** — explore with sample data or start fresh
-- **Guided tour** — interactive walkthrough for first-time users
+- **Guided tour** — interactive walkthrough for first-time users with scroll/z-index corrections
 
 ---
 
@@ -139,7 +142,8 @@ PENA/
 ├── icon-512.png        — App icon (512x512, transparent)
 ├── icon-192.png        — App icon (192x192)
 ├── icon-180.png        — Apple touch icon
-├── favicon.png         — Favicon (32x32)
+├── favicon.png         — Favicon (32x32, from pena.png)
+├── pena.png            — Project logo (1024x1024)
 ├── lib/
 │   ├── ledger.js       — Append-only event log, deterministic state rebuild, integrity hashes
 │   ├── actions.js      — Action handlers: contribute, propose, approve, execute, disputes, recurring
@@ -151,9 +155,9 @@ PENA/
 │   └── icons.js        — SVG icon library (50+ icons, zero dependencies)
 ├── tests/
 │   ├── ledger.test.js  — Ledger state machine tests (38 tests)
-│   ├── wdk.test.js     — Wallet/signing tests
-│   ├── qvac.test.js    — OCR + NL query tests
-│   ├── signing.test.js — EIP-191 signature tests
+│   ├── wdk.test.js     — Wallet/signing tests (8 tests)
+│   ├── qvac.test.js    — OCR + NL query tests (14 tests)
+│   ├── signing.test.js — EIP-191 signature tests (9 tests)
 │   └── e2e.test.js     — End-to-end integration tests (19 tests)
 ├── vercel.json         — Deployment config, security headers
 ├── LICENSE             — MIT
@@ -230,9 +234,9 @@ MIT — see [LICENSE](LICENSE)
 What to look for when evaluating PE\u00d1A:
 
 1. **On-chain tx hashes** — EIP-3009 `transferWithAuthorization` signatures are real, verifiable on-chain
-2. **Real cryptography, tested** — `npm test` runs 51 tests including 7 that produce genuine EIP-191 and EIP-3009 signatures and verify they recover to the signer address (`tests/signing.test.js`). The wallet layer is real ethers.js cryptography, not a mock.
+2. **Real cryptography, tested** — `npm test` runs 88 tests across 5 suites including genuine EIP-191 and EIP-3009 signatures verified against signer addresses (`tests/signing.test.js`). The wallet layer is real ethers.js cryptography, not a mock.
 3. **P2P sync** — open two browser tabs, create a contribution in one, watch it appear in the other via BroadcastChannel
 4. **Receipt OCR** — upload a receipt image, watch Tesseract.js extract payee/amount/category locally
 5. **NL queries** — type "saldo", "transporte", "quien contribuy\u00f3 m\u00e1s" and get answers from the local ledger
 6. **M-of-N approval** — create a proposal, approve it from multiple members, watch the threshold gate execution
-7. **Reproducibility** — `git clone && npm install && npm test` — 51 passing tests; `npx serve .` to run the app
+7. **Reproducibility** — `git clone && npm install && npm test` — 88 passing tests across 5 suites; `npx serve .` to run the app
