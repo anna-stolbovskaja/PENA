@@ -133,13 +133,14 @@ function showTourStep() {
 
   if (target) {
     // Build overlay content: dark backdrop + tooltip
-    overlay.innerHTML = '<div id="tour-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:39;pointer-events:none"></div>';
+    overlay.innerHTML = '<div id="tour-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9997;pointer-events:none"></div>';
     
     // Scroll target into view AFTER adding backdrop
     target.classList.add('tour-highlight');
+    void target.offsetTop;
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
-    // Wait for scroll, then position tooltip
+    // Wait for scroll to complete, then position tooltip
     setTimeout(() => {
       const rect = target.getBoundingClientRect();
 
@@ -147,7 +148,7 @@ function showTourStep() {
       const tooltip = document.createElement('div');
       tooltip.className = 'fixed bg-white dark:bg-gray-900 rounded-xl p-5 shadow-2xl border-2 border-green-500 max-w-sm scale-in';
       tooltip.style.pointerEvents = 'auto';
-      tooltip.style.zIndex = '50';
+      tooltip.style.zIndex = '9999';
       
       // Position: below target if space, otherwise above
       const tooltipWidth = 320;
@@ -208,7 +209,7 @@ function showTourStep() {
           localStorage.setItem('pena_tour_done', '1');
         };
       });
-    }, 300);
+    }, 600);
   } else {
     overlay.style.background = 'transparent';
     tourStep++;

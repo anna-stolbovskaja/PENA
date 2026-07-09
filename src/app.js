@@ -530,10 +530,21 @@ function renderBalance() {
           <div class="flex-1 min-w-0"><p class="text-xs text-gray-400">Wallet</p><p class="font-mono text-xs break-all select-all">${state.wallet.address}</p></div>
           <div class="text-right"><p class="text-xs text-gray-400">Balance</p><p id="onchain-balance" class="text-lg font-bold text-green-600 dark:text-green-400">&mdash;</p></div>
         </div>
-        <div class="flex gap-2 mt-3">
+        <div class="flex gap-2 mt-3 flex-wrap">
           <button id="btn-refresh-chain" class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium cursor-pointer">↻ Refresh</button>
+          <button id="btn-send-eth" class="px-3 py-1.5 text-xs rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium cursor-pointer">Send ETH ↗</button>
           <a href="${getChain().explorer}/address/${state.wallet.address}" target="_blank" rel="noopener" class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium cursor-pointer">Explorer ↗</a>
         </div>
+        <div id="send-eth-form" class="hidden mt-3 space-y-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <input id="send-eth-to" type="text" placeholder="Recipient address (0x...)" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-mono focus:outline-none focus:border-green-500">
+          <div class="flex gap-2">
+            <input id="send-eth-amount" type="text" placeholder="Amount (ETH)" class="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm focus:outline-none focus:border-green-500">
+            <button id="btn-send-eth-confirm" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium">Send</button>
+            <button id="btn-send-eth-cancel" class="px-3 py-2 rounded-lg text-gray-500 text-sm">Cancel</button>
+          </div>
+          <p class="text-xs text-gray-400">${getChain().name} testnet · Gas from wallet balance</p>
+        </div>
+        <div id="send-eth-result" class="hidden mt-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 text-xs"></div>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1080,6 +1091,8 @@ function renderHelp() {
           <p>Toggle between modes using the badge in the header.</p>
         </div>
       </div>
+
+      <button id="btn-restart-tour" class="w-full py-3 rounded-xl border-2 border-dashed border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 font-medium text-sm hover:border-green-500 transition-smooth flex items-center justify-center gap-2">${icon('book', 'sm')} Restart Interactive Tour</button>
     </div>
   `;
 }
@@ -1118,7 +1131,7 @@ function showFeedDetail(type, id) {
     const contribs = state.contributions.filter(c => c.memberId === id);
     const m = state.members.find(m => m.id === id);
     title = `Contribution — ${escapeHtml(m ? m.name : '?')}`;
-    body = `<div class="space-y-2">${contribs.map(c => `<div class="flex justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950/30"><div><p class="text-sm font-medium">${c.amount} USDt</p><p class="text-xs text-gray-400">${new Date(c.ts).toLocaleString()}</p></div><p class="font-mono text-xs text-gray-400">${escapeHtml(c.txHash || '')}</p></div>`).join('')}</div>`;
+    body = `<div class="space-y-2">${contribs.map(c => `<div class="flex justify-between p-3 rounded-lg bg-green-50 dark:bg-green-950/30"><div><p class="text-sm font-medium">${c.amount} USDt</p><p class="text-xs text-gray-400">${new Date(c.ts).toLocaleString()}</p></div><p class="font-mono text-xs text-gray-400 break-all">${escapeHtml(c.txHash || '')}</p></div>`).join('')}</div>`;
   } else if (type === 'proposal') {
     const p = state.proposals.find(p => p.id === id);
     if (!p) return;
@@ -1225,6 +1238,50 @@ function bindEvents() {
   if (document.getElementById('onchain-balance')) {
     getOnChainBalance(state.wallet.address).then(b => { const el = document.getElementById('onchain-balance'); if (el) el.textContent = b.display + ' ' + b.symbol; }).catch(() => {});
   }
+  // Send ETH form toggle
+  const sendEthBtn = document.getElementById('btn-send-eth');
+  const sendEthForm = document.getElementById('send-eth-form');
+  if (sendEthBtn && sendEthForm) {
+    sendEthBtn.addEventListener('click', () => { sendEthForm.classList.toggle('hidden'); });
+  }
+  const sendEthCancel = document.getElementById('btn-send-eth-cancel');
+  if (sendEthCancel && sendEthForm) {
+    sendEthCancel.addEventListener('click', () => { sendEthForm.classList.add('hidden'); });
+  }
+  // Send ETH confirm
+  const sendEthConfirm = document.getElementById('btn-send-eth-confirm');
+  if (sendEthConfirm) sendEthConfirm.addEventListener('click', async () => {
+    const toEl = document.getElementById('send-eth-to');
+    const amtEl = document.getElementById('send-eth-amount');
+    const resultEl = document.getElementById('send-eth-result');
+    const to = (toEl?.value || '').trim();
+    const amount = (amtEl?.value || '').trim();
+    if (!to || !to.startsWith('0x') || to.length !== 42) { showToast('Invalid address', 'error'); return; }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) { showToast('Invalid amount', 'error'); return; }
+    sendEthConfirm.disabled = true;
+    sendEthConfirm.textContent = 'Sending...';
+    try {
+      const result = await sendOnChainTransfer(state.wallet.privateKey, to, amount);
+      if (resultEl) {
+        resultEl.classList.remove('hidden');
+        resultEl.innerHTML = '<p class="text-green-700 dark:text-green-400 font-medium">Transaction confirmed!</p>' +
+          '<p class="mt-1">Block: ' + result.blockNumber + '</p>' +
+          '<p class="break-all mt-1">Hash: <a href="' + result.explorerUrl + '" target="_blank" rel="noopener" class="underline">' + result.hash + '</a></p>';
+      }
+      showToast('ETH sent! Block #' + result.blockNumber, 'success');
+      // Refresh balance
+      getOnChainBalance(state.wallet.address).then(b => { const el = document.getElementById('onchain-balance'); if (el) el.textContent = b.display + ' ' + b.symbol; }).catch(() => {});
+    } catch (err) {
+      showToast('Send failed: ' + err.message, 'error');
+      if (resultEl) { resultEl.classList.remove('hidden'); resultEl.innerHTML = '<p class="text-red-500">Error: ' + err.message + '</p>'; }
+    }
+    sendEthConfirm.disabled = false;
+    sendEthConfirm.textContent = 'Send';
+  });
+
+  // Restart Tour
+  const restartTour = document.getElementById('btn-restart-tour');
+  if (restartTour) restartTour.addEventListener('click', () => { localStorage.removeItem('pena_tour_done'); startTour(); });
 
   // Reports
   const reportDl = document.getElementById('btn-report-download'); if (reportDl) reportDl.addEventListener('click', () => downloadReport(state));
