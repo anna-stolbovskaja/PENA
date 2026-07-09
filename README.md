@@ -91,7 +91,7 @@ Visit the deployed version: **https://pena-repo.vercel.app**
 
 ### Demo Video
 
-**[Demo video link will be added here — ≤3 min, required for submission]**
+**[▶ Watch Demo on YouTube](https://youtu.be/GnFDD0jLWho)**
 
 ---
 
@@ -162,7 +162,7 @@ User Action → Sign with Wallet (WDK) → Create Event → Apply to Ledger Stat
 | Data | Location | Persisted |
 |---|---|---|
 | Wallet keys | Browser localStorage | Yes, on-device only |
-| Ledger events | In-memory + P2P sync | Prototype: in-memory. Production: Autobase/Hypercore |
+| Ledger events | localStorage + P2P sync | Yes, survives page reloads. Production: Autobase/Hypercore |
 | Notes | Browser localStorage | Yes, on-device only |
 | Receipt images | Processed by OCR, not stored | N/A |
 
@@ -183,9 +183,14 @@ User Action → Sign with Wallet (WDK) → Create Event → Apply to Ledger Stat
 ## Security
 
 - All user input HTML-escaped via `escapeHtml()` to prevent XSS
-- Wallet private keys stored in localStorage, never transmitted
+- Input validation: `sanitizeAmount()` and `sanitizeText()` on all ledger events
+- Event integrity: FNV-1a hash on every event; tampered events rejected on apply
+- Replay protection: `Set` of applied event IDs prevents duplicate application via P2P
+- Balance guard: execution blocked when treasury balance < proposal amount
+- Wallet private keys stored in localStorage, never transmitted; mnemonic discarded after key generation
 - All async operations wrapped in try/catch — app never crashes silently
-- Security headers: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
+- Security headers: CSP (self + jsdelivr + esm.sh), X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
+- Receipt upload limited to 10 MB; event count capped at 5000 with graceful fallback
 - No hardcoded secrets, API keys, or tokens
 - No `eval()`, no `document.write()`, no inline event handlers
 - `parseInt` with radix 10 everywhere

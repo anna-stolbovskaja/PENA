@@ -27,6 +27,7 @@ const state = {
   showContribute: false,
   showProposal: false,
   proposalReceipt: null,
+  proposalCategories: [],
   ocrLoading: false,
   nlInput: '',
   nlResult: '',
@@ -45,6 +46,8 @@ const state = {
   calcMembers: 0,
   calcAmount: 0,
   calcSplitMode: 'equal',
+  // Tifo budget tracker
+  tifoBudgets: [],
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -60,6 +63,11 @@ function init() {
   try {
     state.notes = JSON.parse(localStorage.getItem('pena_notes') || '[]');
   } catch { state.notes = []; }
+
+  // Load tifo budgets
+  try {
+    state.tifoBudgets = JSON.parse(localStorage.getItem('pena_tifo_budgets') || '[]');
+  } catch { state.tifoBudgets = []; }
 
   // Load wallet
   const savedWallet = localStorage.getItem('pena_wallet');
@@ -83,7 +91,7 @@ function init() {
     });
     state.p2p.onEvent((msg) => {
       if (msg.type === 'event') {
-        if (msg.event && msg.event.id && state.events.some(e => e.id === msg.event.id)) break; // duplicate
+        if (msg.event && msg.event.id && state.events.some(e => e.id === msg.event.id)) return; // duplicate
         state.events.push(msg.event);
         applyEvent(state, msg.event);
         persistEvents();
@@ -160,6 +168,13 @@ function seedData() {
   const p3 = { id: 'p3', payee: 'Hardware Store', amount: 180, currency: 'USDt', purpose: 'Materials for temporary stand', category: 'Equipment', createdBy: 'm3', ts: Date.now() - 3600000 };
   const evP3 = createEvent(EVENT_TYPES.PROPOSAL_CREATE, p3, state.wallet); state.events.push(evP3); applyEvent(state, evP3);
   applyEvent(state, createEvent(EVENT_TYPES.PROPOSAL_APPROVE, { proposalId: 'p3', memberId: 'm3', sig: '0xs5', ts: Date.now() - 3000000 }, state.wallet));
+
+  // Demo tifo budgets
+  state.tifoBudgets = [
+    { id: 'tb1', name: 'Flags for Derby', goal: 600, spent: 320, deadline: Date.now() + 86400000 * 12, category: 'Tifo' },
+    { id: 'tb2', name: 'Away Match Bus', goal: 900, spent: 450, deadline: Date.now() + 86400000 * 5, category: 'Transport' },
+  ];
+  localStorage.setItem('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
 }
 
 function seedMatches() {
@@ -219,9 +234,11 @@ async function doCreateProposal(payee, amount, purpose, category) {
   if (!payee || !payee.trim() || !amt || amt <= 0 || amt > 1000000 || !purpose || !purpose.trim()) { showToast('Fill all fields with valid data', 'error'); return; }
   amount = amt;
   const id = 'p' + Date.now();
-  emitEvent(createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id, payee, amount: Number(amount), currency: 'USDt', purpose, category: category || 'Other', createdBy: state.currentUser, ts: Date.now() }, state.wallet));
+  const cats = state.proposalCategories.length > 0 ? state.proposalCategories : [category || 'Other'];
+  const catStr = cats.join(', ');
+  emitEvent(createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id, payee, amount: Number(amount), currency: 'USDt', purpose, category: catStr, categories: cats, createdBy: state.currentUser, ts: Date.now() }, state.wallet));
   if (state.proposalReceipt) emitEvent(createEvent(EVENT_TYPES.RECEIPT_PARSE, { proposalId: id, parsed: state.proposalReceipt }, state.wallet));
-  state.showProposal = false; state.proposalReceipt = null;
+  state.showProposal = false; state.proposalReceipt = null; state.proposalCategories = [];
   showToast('Proposal created and synced', 'success');
 }
 
@@ -499,6 +516,12 @@ function renderFeed() {
             <input id="prop-purpose" type="text" placeholder="Purpose" maxlength="200" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
             <div class="flex gap-2 flex-wrap">
               ${quickPurposes.map(p => `<button data-quick-purpose="${escapeHtml(p)}" class="text-xs px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900">${escapeHtml(p)}</button>`).join('')}
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">Categories (select multiple)</label>
+              <div class="flex gap-2 flex-wrap" id="prop-categories">
+                ${['Transport', 'Tifo', 'Equipment', 'Food', 'Tickets', 'Charity', 'Other'].map(c => `<button data-cat-toggle="${escapeHtml(c)}" class="text-xs px-3 py-1.5 rounded-full border transition-smooth ${(state.proposalCategories || []).includes(c) ? 'bg-green-600 text-white border-green-600' : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-green-500'}">${escapeHtml(c)}</button>`).join('')}
+              </div>
             </div>
             <div class="receipt-drop rounded-lg p-4 text-center cursor-pointer" id="receipt-upload">
               ${state.ocrLoading ? `<div class="flex items-center justify-center gap-2 text-blue-500"><span class="spin">${icon('refresh', 'md')}</span> Processing OCR...</div>` : state.proposalReceipt ? `<div class="text-left"><p class="text-xs text-green-600 dark:text-green-400 font-medium mb-1 flex items-center gap-1">${icon('check', 'sm')} QVAC OCR parsed:</p><p class="text-sm">${escapeHtml(state.proposalReceipt.payee)} - ${state.proposalReceipt.amount} USDt - ${escapeHtml(state.proposalReceipt.category)}</p></div>` : `<div class="flex items-center justify-center gap-2 text-gray-400"><span>${icon('camera', 'md')}</span> Attach receipt - on-device OCR</div>`}
@@ -797,6 +820,38 @@ function renderMatches() {
       </div>
 
       <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('wallet', 'sm')} Budget Tracker</h4>
+        <div class="space-y-3">
+          ${state.tifoBudgets.length === 0 ? '<p class="text-sm text-gray-400 text-center py-4">No active budgets</p>' :
+            state.tifoBudgets.map(b => {
+              const pct = b.goal > 0 ? Math.min(100, Math.round(b.spent / b.goal * 100)) : 0;
+              const remaining = Math.max(0, b.goal - b.spent);
+              const daysLeft = Math.max(0, Math.ceil((b.deadline - Date.now()) / 86400000));
+              const urgent = daysLeft <= 3;
+              return `<div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">${escapeHtml(b.category)}</span>
+                    <p class="font-medium text-sm">${escapeHtml(b.name)}</p>
+                  </div>
+                  <span class="text-xs ${urgent ? 'text-red-500 font-bold' : 'text-gray-400'}">${daysLeft}d left</span>
+                </div>
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                  <span>${b.spent} / ${b.goal} USDt</span>
+                  <span>${pct}%</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-bar-fill" style="width:${pct}%;background:${pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : '#00a86b'}"></div>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Remaining: ${remaining} USDt · Deadline: ${new Date(b.deadline).toLocaleDateString('en', { month: 'short', day: 'numeric' })}</p>
+              </div>`;
+            }).join('')
+          }
+          <button id="btn-add-budget" class="w-full py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 text-gray-400 text-sm hover:border-green-500 hover:text-green-500 transition-smooth">+ Add Budget Goal</button>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
         <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('trending', 'sm')} Form Guide</h4>
         <div class="flex gap-2">
           ${finished.slice(-5).reverse().map(m => {
@@ -1085,6 +1140,7 @@ function bindEvents() {
   const bpOk = document.getElementById('btn-prop-ok'); if (bpOk) bpOk.addEventListener('click', () => { const payee = document.getElementById('prop-payee').value.trim(); const amount = parseInt(document.getElementById('prop-amount').value, 10); const purpose = document.getElementById('prop-purpose').value.trim(); doCreateProposal(payee, amount, purpose, state.proposalReceipt?.category); });
   const bpCancel = document.getElementById('btn-prop-cancel'); if (bpCancel) bpCancel.addEventListener('click', () => { state.showProposal = false; state.proposalReceipt = null; render(); });
   document.querySelectorAll('[data-quick-purpose]').forEach(btn => btn.addEventListener('click', () => { const inp = document.getElementById('prop-purpose'); if (inp) inp.value = btn.dataset.quickPurpose; }));
+  document.querySelectorAll('[data-cat-toggle]').forEach(btn => btn.addEventListener('click', () => { const cat = btn.dataset.catToggle; const idx = state.proposalCategories.indexOf(cat); if (idx >= 0) state.proposalCategories.splice(idx, 1); else state.proposalCategories.push(cat); render(); }));
 
   // Receipt upload
   const ru = document.getElementById('receipt-upload'); if (ru) ru.addEventListener('click', () => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e) => { if (e.target.files[0]) doParseReceipt(e.target.files[0]); }; input.click(); });
@@ -1114,6 +1170,35 @@ function bindEvents() {
   // WebRTC
   const rtcOffer = document.getElementById('btn-rtc-offer'); if (rtcOffer) rtcOffer.addEventListener('click', async () => { const sdp = await state.p2p?.createOffer(); state.rtcOffer = sdp || ''; render(); });
   const rtcConnect = document.getElementById('btn-rtc-connect'); if (rtcConnect) rtcConnect.addEventListener('click', async () => { const sdp = document.getElementById('rtc-answer-input').value.trim(); if (sdp && state.p2p) { const ok = await state.p2p.connectWithAnswer(sdp); showToast(ok ? 'WebRTC connected' : 'WebRTC error', ok ? 'success' : 'error'); } });
+
+  // Budget tracker
+  const addBudget = document.getElementById('btn-add-budget');
+  if (addBudget) addBudget.addEventListener('click', () => {
+    showModal('New Budget Goal', `
+      <div class="space-y-3">
+        <input id="budget-name" type="text" placeholder="Budget name (e.g. Flags for Derby)" maxlength="80" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+        <input id="budget-goal" type="number" placeholder="Goal amount (USDt)" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+        <input id="budget-deadline" type="date" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+        <select id="budget-cat" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+          <option value="Tifo">Tifo</option><option value="Transport">Transport</option><option value="Equipment">Equipment</option><option value="Tickets">Tickets</option><option value="Other">Other</option>
+        </select>
+        <button id="budget-save" class="w-full py-2 rounded-lg bg-green-600 text-white font-medium text-sm">Create Budget</button>
+      </div>
+    `);
+    setTimeout(() => {
+      const save = document.getElementById('budget-save');
+      if (save) save.addEventListener('click', () => {
+        const name = document.getElementById('budget-name')?.value?.trim();
+        const goal = parseFloat(document.getElementById('budget-goal')?.value || '0');
+        const deadline = document.getElementById('budget-deadline')?.value;
+        const cat = document.getElementById('budget-cat')?.value || 'Other';
+        if (!name || goal <= 0) { showToast('Fill name and goal', 'error'); return; }
+        state.tifoBudgets.push({ id: 'tb' + Date.now(), name, goal, spent: 0, deadline: deadline ? new Date(deadline).getTime() : Date.now() + 86400000 * 30, category: cat });
+        localStorage.setItem('pena_tifo_budgets', JSON.stringify(state.tifoBudgets));
+        closeModal(); render(); showToast('Budget created', 'success');
+      });
+    }, 100);
+  });
 
   // Sortable tables
   document.querySelectorAll('table[id^="sortable-table-"]').forEach(t => attachSortable(t.id));

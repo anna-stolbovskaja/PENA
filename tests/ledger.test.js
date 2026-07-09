@@ -6,10 +6,15 @@ import {
   initialState,
   applyEvent,
   rebuildState,
+  resetAppliedIds,
   isApproved,
   getCategorySummary,
   getMemberContributions,
   escapeHtml,
+  sanitizeAmount,
+  sanitizeText,
+  eventHash,
+  verifyEventIntegrity,
 } from '../lib/ledger.js';
 
 test('initialState returns empty collections and zero balance', () => {
@@ -178,4 +183,100 @@ test('escapeHtml handles edge cases', () => {
   assert.equal(escapeHtml(''), '');
   assert.equal(escapeHtml('normal text'), 'normal text');
   assert.equal(escapeHtml('<img src=x onerror=alert(1)>'), '&lt;img src=x onerror=alert(1)&gt;');
+});
+
+// ── Event Hash & Integrity ─────────────────────────────────────
+
+test('createEvent produces a hash', () => {
+  const ev = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 });
+  assert.ok(ev.hash, 'event should have a hash');
+  assert.equal(typeof ev.hash, 'string');
+  assert.equal(ev.hash.length, 8); // FNV-1a 32-bit hex
+});
+
+test('verifyEventIntegrity passes for untampered event', () => {
+  const ev = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 });
+  assert.ok(verifyEventIntegrity(ev));
+});
+
+test('verifyEventIntegrity fails for tampered event', () => {
+  const ev = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 });
+  ev.data.amount = 999999;
+  assert.equal(verifyEventIntegrity(ev), false);
+});
+
+test('eventHash is deterministic', () => {
+  const ev = createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'x', name: 'Test' });
+  const h1 = eventHash(ev);
+  const h2 = eventHash(ev);
+  assert.equal(h1, h2);
+});
+
+// ── sanitizeAmount ─────────────────────────────────────────────
+
+test('sanitizeAmount clamps negative to 0', () => {
+  assert.equal(sanitizeAmount(-5), 0);
+});
+
+test('sanitizeAmount rounds to 2 decimals', () => {
+  assert.equal(sanitizeAmount(1.999), 2);
+  assert.equal(sanitizeAmount(3.456), 3.46);
+});
+
+test('sanitizeAmount handles NaN and Infinity', () => {
+  assert.equal(sanitizeAmount(NaN), 0);
+  assert.equal(sanitizeAmount(Infinity), 0);
+  assert.equal(sanitizeAmount('abc'), 0);
+});
+
+// ── sanitizeText ───────────────────────────────────────────────
+
+test('sanitizeText truncates to maxLen', () => {
+  assert.equal(sanitizeText('hello world', 5), 'hello');
+});
+
+test('sanitizeText handles null/undefined', () => {
+  assert.equal(sanitizeText(null), '');
+  assert.equal(sanitizeText(undefined), '');
+});
+
+// ── Replay protection ──────────────────────────────────────────
+
+test('applyEvent rejects duplicate event IDs', () => {
+  resetAppliedIds();
+  const state = initialState();
+  const ev = createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm1', name: 'Test' });
+  applyEvent(state, ev);
+  applyEvent(state, ev); // duplicate
+  assert.equal(state.members.length, 1);
+});
+
+// ── Balance guard ──────────────────────────────────────────────
+
+test('applyEvent blocks execution when balance insufficient', () => {
+  resetAppliedIds();
+  const state = initialState();
+  // Add member
+  applyEvent(state, createEvent(EVENT_TYPES.MEMBER_JOIN, { id: 'm1', name: 'X' }));
+  // Add small contribution
+  applyEvent(state, createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 50 }));
+  // Create large proposal
+  applyEvent(state, createEvent(EVENT_TYPES.PROPOSAL_CREATE, { id: 'p1', payee: 'Y', amount: 1000, purpose: 'test' }));
+  // Try to execute with insufficient funds
+  applyEvent(state, createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId: 'p1' }));
+  const prop = state.proposals.find(p => p.id === 'p1');
+  assert.equal(prop.status, 'pending'); // should still be pending
+  assert.equal(state.balance, 50); // balance unchanged
+});
+
+// ── Tampered event rejection ───────────────────────────────────
+
+test('applyEvent rejects tampered events', () => {
+  resetAppliedIds();
+  const state = initialState();
+  const ev = createEvent(EVENT_TYPES.CONTRIBUTION, { memberId: 'm1', amount: 100 });
+  ev.data.amount = 999999; // tamper
+  applyEvent(state, ev);
+  assert.equal(state.contributions.length, 0); // rejected
+  assert.equal(state.balance, 0);
 });
