@@ -40,6 +40,11 @@ const state = {
   showRTC: false,
   quickFill: [],
   loading: true,
+  matches: [],
+  calcTarget: 0,
+  calcMembers: 0,
+  calcAmount: 0,
+  calcSplitMode: 'equal',
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -93,7 +98,7 @@ function init() {
   } catch (err) { console.error('P2P init error:', err.message); }
 
   // Seed data
-  if (state.mode === 'demo') seedData();
+  if (state.mode === 'demo') { seedData(); seedMatches(); }
   render();
 
   // Hide skeleton, show app
@@ -140,6 +145,18 @@ function seedData() {
   const p3 = { id: 'p3', payee: 'Hardware Store', amount: 180, currency: 'USDt', purpose: 'Materials for temporary stand', category: 'Equipment', createdBy: 'm3', ts: Date.now() - 3600000 };
   const evP3 = createEvent(EVENT_TYPES.PROPOSAL_CREATE, p3, state.wallet); state.events.push(evP3); applyEvent(state, evP3);
   applyEvent(state, createEvent(EVENT_TYPES.PROPOSAL_APPROVE, { proposalId: 'p3', memberId: 'm3', sig: '0xs5', ts: Date.now() - 3000000 }, state.wallet));
+}
+
+function seedMatches() {
+  if (state.matches.length > 0) return;
+  state.matches = [
+    { id: 'g1', date: Date.now() - 86400000 * 14, opponent: 'Atletico Norte', venue: 'Estadio Sur', home: true, scoreHome: 2, scoreAway: 1, status: 'finished', attendance: 340 },
+    { id: 'g2', date: Date.now() - 86400000 * 7, opponent: 'Club Central', venue: 'Estadio Central', home: false, scoreHome: 1, scoreAway: 1, status: 'finished', attendance: 280 },
+    { id: 'g3', date: Date.now() - 86400000 * 3, opponent: 'Deportivo Este', venue: 'Estadio Sur', home: true, scoreHome: 3, scoreAway: 0, status: 'finished', attendance: 420 },
+    { id: 'g4', date: Date.now() + 86400000 * 2, opponent: 'Union Oeste', venue: 'Campo Municipal', home: false, scoreHome: null, scoreAway: null, status: 'upcoming', attendance: 0 },
+    { id: 'g5', date: Date.now() + 86400000 * 9, opponent: 'Atletico Norte', venue: 'Estadio Sur', home: true, scoreHome: null, scoreAway: null, status: 'upcoming', attendance: 0 },
+    { id: 'g6', date: Date.now() + 86400000 * 16, opponent: 'Club Central', venue: 'Estadio Sur', home: true, scoreHome: null, scoreAway: null, status: 'upcoming', attendance: 0 },
+  ];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -302,6 +319,8 @@ const TABS = [
   { id: 'proposals', label: 'Proposals', icon: 'proposals' },
   { id: 'balance', label: 'Balance', icon: 'balance' },
   { id: 'reports', label: 'Reports', icon: 'reports' },
+  { id: 'matches', label: 'Matches', icon: 'star' },
+  { id: 'calc', label: 'Calc', icon: 'chart' },
   { id: 'query', label: 'Query', icon: 'query' },
   { id: 'p2p', label: 'P2P', icon: 'p2p' },
   { id: 'help', label: 'Help', icon: 'help' },
@@ -380,6 +399,8 @@ function renderTab() {
     case 'proposals': return renderProposals();
     case 'balance': return renderBalance();
     case 'reports': return renderReports();
+    case 'matches': return renderMatches();
+    case 'calc': return renderCalc();
     case 'query': return renderQuery();
     case 'p2p': return renderP2P();
     case 'help': return renderHelp();
@@ -630,6 +651,217 @@ function renderReports() {
   `;
 }
 
+// ─── MATCHES ───────────────────────────────────────────────────
+
+function renderMatches() {
+  const finished = state.matches.filter(m => m.status === 'finished').sort((a, b) => b.date - a.date);
+  const upcoming = state.matches.filter(m => m.status === 'upcoming').sort((a, b) => a.date - b.date);
+  const wins = finished.filter(m => m.home ? m.scoreHome > m.scoreAway : m.scoreAway > m.scoreHome).length;
+  const draws = finished.filter(m => m.scoreHome === m.scoreAway).length;
+  const losses = finished.filter(m => m.home ? m.scoreHome < m.scoreAway : m.scoreAway < m.scoreHome).length;
+  const goalsFor = finished.reduce((s, m) => s + (m.home ? m.scoreHome : m.scoreAway), 0);
+  const goalsAgainst = finished.reduce((s, m) => s + (m.home ? m.scoreAway : m.scoreHome), 0);
+
+  // Venues
+  const venues = {};
+  state.matches.forEach(m => {
+    if (!venues[m.venue]) venues[m.venue] = { name: m.venue, games: 0, capacity: m.venue.includes('Estadio') ? 5000 : 800 };
+    venues[m.venue].games++;
+  });
+
+  return `
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 text-center">
+          <p class="text-xs text-gray-400">Played</p>
+          <p class="text-2xl font-bold">${finished.length}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 text-center">
+          <p class="text-xs text-gray-400">W / D / L</p>
+          <p class="text-lg font-bold"><span class="text-green-600">${wins}</span> / <span class="text-gray-500">${draws}</span> / <span class="text-red-500">${losses}</span></p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 text-center">
+          <p class="text-xs text-gray-400">Goals For</p>
+          <p class="text-2xl font-bold text-green-600">${goalsFor}</p>
+        </div>
+        <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 text-center">
+          <p class="text-xs text-gray-400">Goals Against</p>
+          <p class="text-2xl font-bold text-red-500">${goalsAgainst}</p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('clock', 'sm')} Upcoming Matches</h4>
+        <div class="space-y-2">
+          ${upcoming.length === 0 ? '<p class="text-sm text-gray-400 text-center py-4">No upcoming matches</p>' :
+            upcoming.map(m => {
+              const d = new Date(m.date);
+              const daysAway = Math.ceil((m.date - Date.now()) / 86400000);
+              return `<div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 slide-in">
+                <div class="text-center flex-shrink-0 w-12">
+                  <p class="text-xs text-gray-400">${d.toLocaleDateString('en', { month: 'short' })}</p>
+                  <p class="text-lg font-bold">${d.getDate()}</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium text-sm truncate">${escapeHtml(m.opponent)}</p>
+                  <p class="text-xs text-gray-400 truncate">${escapeHtml(m.venue)} - ${m.home ? 'Home' : 'Away'}</p>
+                </div>
+                <span class="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 flex-shrink-0">${daysAway}d</span>
+              </div>`;
+            }).join('')
+          }
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('star', 'sm')} Results History</h4>
+        ${sortableTable(
+          [{ label: 'Date' }, { label: 'Opponent' }, { label: 'Venue' }, { label: 'Score' }, { label: 'Result' }],
+          finished.map(m => {
+            const d = new Date(m.date).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+            const ourScore = m.home ? m.scoreHome : m.scoreAway;
+            const oppScore = m.home ? m.scoreAway : m.scoreHome;
+            const result = ourScore > oppScore ? '<span class="text-green-600 font-medium">W</span>' : ourScore === oppScore ? '<span class="text-gray-500">D</span>' : '<span class="text-red-500 font-medium">L</span>';
+            return [d, escapeHtml(m.opponent), escapeHtml(m.venue), `${ourScore} - ${oppScore}`, result];
+          })
+        )}
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('globe', 'sm')} Venues</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          ${Object.values(venues).map(v => `
+            <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-800">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="font-medium text-sm">${escapeHtml(v.name)}</p>
+                  <p class="text-xs text-gray-400">${v.games} match${v.games !== 1 ? 'es' : ''} scheduled</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-gray-400">Capacity</p>
+                  <p class="text-sm font-medium">${v.capacity.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('trending', 'sm')} Form Guide</h4>
+        <div class="flex gap-2">
+          ${finished.slice(-5).reverse().map(m => {
+            const ourScore = m.home ? m.scoreHome : m.scoreAway;
+            const oppScore = m.home ? m.scoreAway : m.scoreHome;
+            const result = ourScore > oppScore ? 'W' : ourScore === oppScore ? 'D' : 'L';
+            const color = result === 'W' ? 'bg-green-600' : result === 'D' ? 'bg-gray-500' : 'bg-red-500';
+            return `<div class="w-10 h-10 rounded-lg ${color} text-white flex items-center justify-center font-bold text-sm">${result}</div>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ─── CALCULATORS ───────────────────────────────────────────────
+
+function renderCalc() {
+  const members = state.members.length || 4;
+  const balance = state.balance;
+  const totalExpenses = state.proposals.filter(p => p.status === 'executed').reduce((s, p) => s + p.amount, 0);
+
+  return `
+    <div class="space-y-4">
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-4 flex items-center gap-2">${icon('chart', 'md')} Expense Splitter</h4>
+        <p class="text-xs text-gray-400 mb-3">Calculate how much each member pays for a shared expense</p>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Total expense (USDt)</label>
+            <input id="split-amount" type="number" placeholder="e.g. 450" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Number of members</label>
+            <input id="split-members" type="number" value="${members}" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+          </div>
+          <button id="btn-split-calc" class="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium text-sm">Calculate Split</button>
+          <div id="split-result" class="mt-3"></div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-4 flex items-center gap-2">${icon('wallet', 'md')} Contribution Target Calculator</h4>
+        <p class="text-xs text-gray-400 mb-3">How much should each member contribute to reach a goal?</p>
+        <div class="space-y-3">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Target amount (USDt)</label>
+            <input id="target-amount" type="number" placeholder="e.g. 2000" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm focus:outline-none focus:border-green-500">
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">Current balance: ${balance} USDt</label>
+          </div>
+          <button id="btn-target-calc" class="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium text-sm">Calculate</button>
+          <div id="target-result" class="mt-3"></div>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-4 flex items-center gap-2">${icon('trending', 'md')} Treasury Health Score</h4>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <p class="text-xs text-gray-400">Total collected</p>
+              <p class="text-xl font-bold text-blue-600 dark:text-blue-400">${balance + totalExpenses} USDt</p>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <p class="text-xs text-gray-400">Total spent</p>
+              <p class="text-xl font-bold text-orange-600 dark:text-orange-400">${totalExpenses} USDt</p>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <p class="text-xs text-gray-400">Avg contribution</p>
+              <p class="text-xl font-bold">${state.contributions.length > 0 ? Math.round((balance + totalExpenses) / state.contributions.length) : 0} USDt</p>
+            </div>
+            <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+              <p class="text-xs text-gray-400">Spend rate</p>
+              <p class="text-xl font-bold">${balance + totalExpenses > 0 ? Math.round(totalExpenses / (balance + totalExpenses) * 100) : 0}%</p>
+            </div>
+          </div>
+          ${(() => {
+            const ratio = balance + totalExpenses > 0 ? balance / (balance + totalExpenses) : 1;
+            const health = ratio > 0.5 ? { label: 'Healthy', color: 'text-green-600', bar: 'bg-green-500' } :
+                          ratio > 0.2 ? { label: 'Moderate', color: 'text-yellow-600', bar: 'bg-yellow-500' } :
+                          { label: 'Low funds', color: 'text-red-500', bar: 'bg-red-500' };
+            return `<div class="mt-3">
+              <div class="flex justify-between text-sm mb-1">
+                <span class="${health.color} font-medium">${health.label}</span>
+                <span>${balance} / ${balance + totalExpenses} USDt</span>
+              </div>
+              <div class="progress-bar"><div class="progress-bar-fill ${health.bar}" style="width:${ratio * 100}%;background:${health.bar.includes('green') ? '#00a86b' : health.bar.includes('yellow') ? '#f59e0b' : '#ef4444'}"></div></div>
+            </div>`;
+          })()}
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-4 flex items-center gap-2">${icon('users', 'md')} Per-Member Cost Projection</h4>
+        <p class="text-xs text-gray-400 mb-3">Project monthly cost per member based on current spending</p>
+        ${(() => {
+          const monthlyAvg = totalExpenses / 3; // rough monthly average from ~3 months of data
+          const perMember = members > 0 ? Math.round(monthlyAvg / members) : 0;
+          const recommended = Math.ceil(perMember / 50) * 50; // round up to nearest 50
+          return `
+            <div class="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900">
+              <p class="text-sm text-green-700 dark:text-green-300">Based on current spending patterns:</p>
+              <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-2">${perMember} USDt<span class="text-sm font-normal text-gray-400">/member/month</span></p>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Recommended monthly contribution: <strong>${recommended} USDt</strong> per member to maintain healthy balance</p>
+            </div>
+          `;
+        })()}
+      </div>
+    </div>
+  `;
+}
+
 // ─── NL QUERY ──────────────────────────────────────────────────
 
 function renderQuery() {
@@ -745,10 +977,11 @@ function renderHelp() {
       <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
         <h4 class="font-semibold mb-3 flex items-center gap-2">${icon('rocket', 'md')} Architecture & Deployment</h4>
         <div class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-          <p><strong>Current:</strong> Static web app (PWA). Works in any browser. Installable on mobile via Add to Home Screen. No backend server required.</p>
-          <p><strong>Production target:</strong> Pear runtime app (Holepunch). Runs as a native desktop/mobile application with full Autobase + Hyperswarm P2P stack. Distributed as a Pear link or APK.</p>
-          <p><strong>Vertical scaling:</strong> Multi-chain support (Solana, TON, TRON via WDK). Subgroup treasuries. Recurring contributions. Budget limits per category.</p>
-          <p><strong>Horizontal scaling:</strong> Federation of fan group treasuries. Cross-group payments for shared events. Public transparency pages for sponsors.</p>
+          <p><strong>Current:</strong> Static PWA deployed to Vercel. Works in any modern browser. Installable on mobile via Add to Home Screen. No backend server required — all data stays on-device.</p>
+          <p><strong>Production target:</strong> Pear runtime app (Holepunch). Runs as a native desktop and mobile application with full Autobase + Hyperswarm P2P stack. Distributed as a Pear link or packaged APK. Zero hosting, zero server costs.</p>
+          <p><strong>Account model:</strong> No accounts needed. Each user generates a self-custody wallet locally. Groups form via P2P invite codes (QR or copy-paste). No email, no password, no KYC.</p>
+          <p><strong>Vertical scaling:</strong> Multi-chain support (Solana, TON, TRON via WDK). Subgroup treasuries. Recurring contributions. Budget limits per category. Time-locked proposals. Match-linked expenses.</p>
+          <p><strong>Horizontal scaling:</strong> Federation of fan group treasuries. Cross-group payments for shared events. Public transparency pages for sponsors. Integration with fan club management tools.</p>
         </div>
       </div>
 
@@ -835,6 +1068,32 @@ function bindEvents() {
 
   // Sortable tables
   document.querySelectorAll('table[id^="sortable-table-"]').forEach(t => attachSortable(t.id));
+
+  // Calculators
+  const splitCalc = document.getElementById('btn-split-calc');
+  if (splitCalc) splitCalc.addEventListener('click', () => {
+    const amount = parseFloat(document.getElementById('split-amount')?.value || '0');
+    const members = parseInt(document.getElementById('split-members')?.value || '0', 10);
+    const result = document.getElementById('split-result');
+    if (!result || amount <= 0 || members <= 0) { if (result) result.innerHTML = '<p class="text-sm text-red-500">Enter valid values</p>'; return; }
+    const perPerson = (amount / members).toFixed(2);
+    result.innerHTML = `<div class="p-4 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900"><p class="text-sm text-green-700 dark:text-green-300">Each member pays:</p><p class="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">${perPerson} <span class="text-sm font-normal">USDt</span></p><p class="text-xs text-gray-400 mt-2">${amount} USDt / ${members} members = ${perPerson} USDt each</p></div>`;
+  });
+
+  const targetCalc = document.getElementById('btn-target-calc');
+  if (targetCalc) targetCalc.addEventListener('click', () => {
+    const target = parseFloat(document.getElementById('target-amount')?.value || '0');
+    const members = state.members.length || 4;
+    const result = document.getElementById('target-result');
+    if (!result || target <= 0) { if (result) result.innerHTML = '<p class="text-sm text-red-500">Enter a valid target</p>'; return; }
+    const remaining = target - state.balance;
+    if (remaining <= 0) {
+      result.innerHTML = `<div class="p-4 rounded-lg bg-green-50 dark:bg-green-950/30"><p class="text-sm text-green-700 dark:text-green-300">Target already reached!</p><p class="text-lg font-bold text-green-600 mt-1">Surplus: ${Math.abs(remaining)} USDt</p></div>`;
+    } else {
+      const perMember = (remaining / members).toFixed(2);
+      result.innerHTML = `<div class="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900"><p class="text-sm text-blue-700 dark:text-blue-300">Remaining to target:</p><p class="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">${remaining} <span class="text-sm font-normal">USDt</span></p><p class="text-sm text-blue-600 dark:text-blue-400 mt-2">Each member needs to contribute:</p><p class="text-3xl font-bold text-blue-600 dark:text-blue-400">${perMember} <span class="text-sm font-normal">USDt</span></p></div>`;
+    }
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
