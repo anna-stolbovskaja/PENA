@@ -4,7 +4,7 @@
 
 import { EVENT_TYPES, createEvent, initialState, applyEvent, rebuildState, resetAppliedIds, isApproved, getCategorySummary, getMemberContributions, escapeHtml, sanitizeAmount } from './lib/ledger.js';
 import { P2PNode } from './lib/p2p.js';
-import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash, ethers } from './lib/wdk.js';
+import { generateWallet, signMessage, signTransferAuthorization, createSmartAccount, verifySignature, checkThreshold, simulateTxHash, shortenHash, ethers, getChain, getOnChainBalance, sendOnChainTransfer } from './lib/wdk.js';
 import { parseReceipt, queryLedger, initOCR, categorizeExpense, QVAC } from './lib/qvac.js';
 import { icon, icons } from './lib/icons.js';
 import { showModal, closeModal, showToast, startTour, shouldShowTour, barChart, donutChart, lineChart, sortableTable, attachSortable, generateQR, copyToClipboard, escapeText, htmlCell } from './lib/ui.js';
@@ -521,6 +521,18 @@ function renderBalance() {
           <div class="flex items-center gap-2 mb-1"><span class="text-orange-600 dark:text-orange-400">${icon('arrowDown', 'md')}</span><p class="text-xs text-gray-400">Expenses</p></div>
           <p class="text-2xl sm:text-3xl font-bold text-orange-600 dark:text-orange-400">${totalOut}</p>
           <p class="text-xs text-gray-400">${state.proposals.filter(p => p.status === 'executed').length} executed</p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-900 rounded-xl p-4 sm:p-5 border border-gray-200 dark:border-gray-800">
+        <h4 class="font-semibold mb-2 flex items-center gap-2">${icon('shield', 'sm')} On-Chain · ${getChain().name}</h4>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div class="flex-1 min-w-0"><p class="text-xs text-gray-400">Wallet</p><p class="font-mono text-xs break-all select-all">${state.wallet.address}</p></div>
+          <div class="text-right"><p class="text-xs text-gray-400">Balance</p><p id="onchain-balance" class="text-lg font-bold text-green-600 dark:text-green-400">&mdash;</p></div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button id="btn-refresh-chain" class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium cursor-pointer">↻ Refresh</button>
+          <a href="${getChain().explorer}/address/${state.wallet.address}" target="_blank" rel="noopener" class="px-3 py-1.5 text-xs rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 font-medium cursor-pointer">Explorer ↗</a>
         </div>
       </div>
 
@@ -1201,6 +1213,18 @@ function bindEvents() {
   const noteAdd = document.getElementById('btn-note-add'); if (noteAdd) noteAdd.addEventListener('click', () => { const inp = document.getElementById('note-input'); if (inp) addNote(state, inp.value, render); });
   const noteIn = document.getElementById('note-input'); if (noteIn) noteIn.addEventListener('keypress', (e) => { if (e.key === 'Enter') addNote(noteIn.value); });
   document.querySelectorAll('[data-note-delete]').forEach(btn => btn.addEventListener('click', () => deleteNote(state, parseInt(btn.dataset.noteDelete, 10), render)));
+
+  // On-chain balance refresh
+  const refreshChain = document.getElementById('btn-refresh-chain');
+  if (refreshChain) refreshChain.addEventListener('click', async () => {
+    const el = document.getElementById('onchain-balance');
+    if (el) el.textContent = '...';
+    try { const b = await getOnChainBalance(state.wallet.address); if (el) el.textContent = b.display + ' ' + b.symbol; } catch { if (el) el.textContent = 'error'; }
+  });
+  // Auto-load on-chain balance
+  if (document.getElementById('onchain-balance')) {
+    getOnChainBalance(state.wallet.address).then(b => { const el = document.getElementById('onchain-balance'); if (el) el.textContent = b.display + ' ' + b.symbol; }).catch(() => {});
+  }
 
   // Reports
   const reportDl = document.getElementById('btn-report-download'); if (reportDl) reportDl.addEventListener('click', () => downloadReport(state));

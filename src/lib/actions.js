@@ -2,7 +2,7 @@
 // Treasury actions: contribute, propose, approve, execute, receipts, disputes, recurring
 
 import { EVENT_TYPES, createEvent, applyEvent, getCategorySummary, getMemberContributions, escapeHtml, sanitizeAmount } from './ledger.js';
-import { signMessage, signTransferAuthorization, checkThreshold, simulateTxHash, shortenHash, verifySignature } from './wdk.js';
+import { signMessage, signTransferAuthorization, checkThreshold, simulateTxHash, shortenHash, verifySignature, sendOnChainTransfer, getChain } from './wdk.js';
 import { secureSet, isUnlocked } from './crypto.js';
 import { parseReceipt, queryLedger } from './qvac.js';
 import { showModal, closeModal, showToast } from './ui.js';
@@ -86,8 +86,20 @@ async function doExecute(state, proposalId, render) {
     if (!proposal || !checkThreshold(proposal, state.threshold)) { showToast('Not enough approvals', 'error'); return; }
     if (state.balance < proposal.amount) { showToast(t('insufficientBalance'), 'error'); return; }
     const auth = await signTransferAuthorization(state.wallet.privateKey, { to: proposal.payee, amount: proposal.amount });
-    emitEvent(state, createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId, txHash: simulateTxHash(), authSignature: auth ? auth.signature : null, ts: Date.now() }, state.wallet), render);
-    showToast('Gasless transfer executed', 'success');
+
+    let txHash;
+    if (state.mode === 'real' && proposal.payeeAddress) {
+      // Real on-chain ETH transfer on configured network
+      showToast('Sending on-chain transaction...', 'info');
+      const result = await sendOnChainTransfer(state.wallet.privateKey, proposal.payeeAddress, proposal.onChainAmount || 0.0001);
+      txHash = result.hash;
+      showToast(`On-chain tx confirmed (block ${result.blockNumber})`, 'success');
+    } else {
+      txHash = simulateTxHash();
+      showToast('Transfer executed (local ledger)', 'success');
+    }
+
+    emitEvent(state, createEvent(EVENT_TYPES.PROPOSAL_EXECUTE, { proposalId, txHash, authSignature: auth ? auth.signature : null, ts: Date.now() }, state.wallet), render);
   } catch (err) { showToast('Error: ' + err.message, 'error'); }
 }
 

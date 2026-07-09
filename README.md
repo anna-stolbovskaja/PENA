@@ -217,6 +217,7 @@ User Action → Sign with Wallet (WDK) → Create Event → Apply to Ledger Stat
 - Replay protection: `Set` of applied event IDs prevents duplicate application via P2P
 - Balance guard: execution blocked when treasury balance < proposal amount
 - **Encrypted storage**: all sensitive data (wallet keys, ledger, budgets, notes) encrypted with AES-256-GCM via Web Crypto API; key derived from user PIN using PBKDF2 (100k iterations)
+- **On-chain transactions**: real ETH transfers on Sepolia testnet via ethers.js `JsonRpcProvider`; live balance display with Etherscan explorer links
 - Wallet private keys stored locally, never transmitted; mnemonic discarded after key generation
 - All async operations wrapped in try/catch — app never crashes silently
 - Security headers: CSP (self + jsdelivr + esm.sh), X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy

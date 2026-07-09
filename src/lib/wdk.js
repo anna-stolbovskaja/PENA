@@ -6,6 +6,56 @@ import { ethers } from 'https://esm.sh/ethers@6.13.4';
 const USDT_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'; // mainnet USDT
 const USDT_DECIMALS = 6;
 
+// ── On-chain configuration ────────────────────────────────────
+const CHAINS = {
+  sepolia: { chainId: 11155111, rpc: 'https://rpc.sepolia.org', name: 'Sepolia', symbol: 'ETH', explorer: 'https://sepolia.etherscan.io' },
+  ethereum: { chainId: 1, rpc: 'https://eth.drpc.org', name: 'Ethereum', symbol: 'ETH', explorer: 'https://etherscan.io' },
+};
+let _provider = null;
+let _chainKey = 'sepolia';
+
+function getChain() { return CHAINS[_chainKey] || CHAINS.sepolia; }
+function setChain(key) { if (CHAINS[key]) { _chainKey = key; _provider = null; } }
+
+function getProvider() {
+  if (!_provider) {
+    const chain = getChain();
+    _provider = new ethers.JsonRpcProvider(chain.rpc, { chainId: chain.chainId, name: chain.name });
+  }
+  return _provider;
+}
+
+// Get on-chain balance (native token, e.g. ETH on Sepolia)
+async function getOnChainBalance(address) {
+  try {
+    const provider = getProvider();
+    const balance = await provider.getBalance(address);
+    return { wei: balance.toString(), display: ethers.formatEther(balance), symbol: getChain().symbol };
+  } catch (err) {
+    console.error('WDK getOnChainBalance error:', err.message);
+    return { wei: '0', display: '0.0', symbol: getChain().symbol };
+  }
+}
+
+// Send real on-chain ETH transfer
+async function sendOnChainTransfer(privateKey, to, amountEth) {
+  const provider = getProvider();
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const tx = await wallet.sendTransaction({
+    to,
+    value: ethers.parseEther(String(amountEth)),
+  });
+  const receipt = await tx.wait();
+  return {
+    hash: receipt.hash,
+    from: receipt.from,
+    to: receipt.to,
+    blockNumber: receipt.blockNumber,
+    status: receipt.status === 1 ? 'success' : 'failed',
+    explorerUrl: getChain().explorer + '/tx/' + receipt.hash,
+  };
+}
+
 function generateWallet() {
   const wallet = ethers.Wallet.createRandom();
   return {
@@ -139,4 +189,10 @@ export {
   simulateTxHash,
   shortenHash,
   ethers,
+  CHAINS,
+  getChain,
+  setChain,
+  getProvider,
+  getOnChainBalance,
+  sendOnChainTransfer,
 };
